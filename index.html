@@ -1,4 +1,4 @@
-<!-- ECDS v2.3 - 2026-05-26 15:05 -->
+<!-- ECDS v2.6 - 2026-05-26 15:13 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -705,6 +705,41 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
 </script>
 <script>
+// Fix jsPDF UMD registration for strict-mode environments
+(function() {
+  // Try all possible registration paths
+  var JPDF = null;
+  
+  // Path 1: Standard UMD global (window.jspdf.jsPDF)
+  if (window.jspdf && window.jspdf.jsPDF) {
+    JPDF = window.jspdf.jsPDF;
+  }
+  // Path 2: Direct global (older versions)
+  else if (typeof jsPDF !== 'undefined') {
+    JPDF = jsPDF;
+  }
+  // Path 3: CommonJS exports
+  else if (typeof module !== 'undefined' && module.exports && module.exports.jsPDF) {
+    JPDF = module.exports.jsPDF;
+  }
+  // Path 4: Check if it got set on a different global name
+  else if (window.jsPDF) {
+    JPDF = window.jsPDF;
+  }
+  
+  if (JPDF) {
+    // Ensure it's accessible via window.jspdf.jsPDF
+    window.jspdf = window.jspdf || {};
+    window.jspdf.jsPDF = JPDF;
+    console.log('jsPDF ready:', typeof JPDF);
+  } else {
+    console.error('jsPDF NOT found after all checks');
+    // Last resort: try to re-parse from the existing script
+    window._jspdfMissing = true;
+  }
+})();
+</script>
+<script>
 
 'use strict';
 var students = [];
@@ -1240,7 +1275,10 @@ function markDoc(id, field) { for (var i = 0; i < students.length; i++) { if (st
 function makeCon() {
   try {
   var st = getStu(selCon); if (!st) { toast('Select a student first'); return; }
-  var J = window.jspdf.jsPDF;
+  // Ensure jsPDF is available
+  var _jspdfLib = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || (typeof jsPDF !== 'undefined' ? jsPDF : null);
+  if (!_jspdfLib) { toast('PDF library not ready - please refresh'); return; }
+  var J = _jspdfLib;
   var doc = new J({unit:'mm', format:'letter'}), W = 215.9, M = 18, y = 34;
   pH(doc, 'Student Registration Contract', 'edmontoncardrivingschool@gmail.com', [26,58,92], W);
   pP(doc, st.photo, W-M-32, y-2, 30, 38);
@@ -1316,7 +1354,10 @@ function makeCon() {
 // ── DPLS0068 PDF ──
 function makeDpl() {
   var st = getStu(selDpl); if (!st) { toast('Select a student first'); return; }
-  var J = window.jspdf.jsPDF;
+  // Ensure jsPDF is available
+  var _jspdfLib = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || (typeof jsPDF !== 'undefined' ? jsPDF : null);
+  if (!_jspdfLib) { toast('PDF library not ready - please refresh'); return; }
+  var J = _jspdfLib;
   var doc = new J({unit:'mm', format:'letter'}), W = 215.9, M = 14, y = 34;
   pH(doc, 'Driving In-Vehicle Evaluation Report (D.R.I.V.E.R.)', 'DPLS0068 Rev. 2026-05  Alberta Transportation and Economic Corridors', [26,58,92], W);
   pP(doc, st.photo, W-M-30, y-2, 28, 35);
@@ -1404,7 +1445,10 @@ function makeDpl() {
 // ── COMPLETION PDF ──
 function makeCmp() {
   var st = getStu(selCmp); if (!st) { toast('Select a student first'); return; }
-  var J = window.jspdf.jsPDF;
+  // Ensure jsPDF is available
+  var _jspdfLib = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF || (typeof jsPDF !== 'undefined' ? jsPDF : null);
+  if (!_jspdfLib) { toast('PDF library not ready - please refresh'); return; }
+  var J = _jspdfLib;
   var doc = new J({unit:'mm', format:'letter'}), W = 215.9, M = 18, y = 34;
   var ivG = gv('c-ivg'), clG = gv('c-clg'), ovr = gv('c-ovr'), notes = gv('c-note');
   var ivH = document.getElementById('c-ivh').value, clH = document.getElementById('c-clh').value;
@@ -1547,7 +1591,20 @@ function init() {
   renderHome();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', function() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    console.error('jsPDF failed to load');
+    // Show warning after page loads
+    setTimeout(function() {
+      var warn = document.createElement('div');
+      warn.style.cssText = 'position:fixed;top:60px;left:10px;right:10px;background:#b03030;color:white;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;z-index:9999;text-align:center';
+      warn.textContent = 'PDF library failed to load. Refresh the page to fix.';
+      document.body.appendChild(warn);
+      setTimeout(function(){ warn.remove(); }, 6000);
+    }, 1000);
+  }
+  init();
+});
 
 </script>
 </body>
