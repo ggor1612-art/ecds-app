@@ -1,4 +1,4 @@
-<!-- ECDS v3.0 - 2026-05-26 18:53 -->
+<!-- ECDS v3.1 - 2026-05-26 19:26 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -762,6 +762,8 @@ function selectDpl(id) {
   document.getElementById('d-clh').value = 15;
   makeSessRows('iv-wrap', n, 'iv');
   makeSessRows('cl-wrap', 6, 'cl');
+  // Init page 2 after DOM is ready
+  setTimeout(initPage2, 100);
 }
 
 function selectCmp(id) {
@@ -1202,6 +1204,142 @@ function clearCanvas(id) {
 }
 function hasContent(canvas) { if(!canvas) return false; var d=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data; for(var i=3;i<d.length;i+=4){if(d[i]>10)return true;} return false; }
 function getSig(id) { var c=document.getElementById(id); return (c&&hasContent(c)) ? c.toDataURL('image/png') : ''; }
+
+
+// ── SKILLS & LESSON PLAN ──────────────────────────────────────────────
+var SKILLS = [
+  {cat:'Vehicle-Handling (Psychomotor)'},
+  {id:'sk-steer',   name:'Steering'},
+  {id:'sk-brake',   name:'Braking'},
+  {id:'sk-speed',   name:'Speed Control'},
+  {cat:'Visual Skills'},
+  {id:'sk-scan-r',  name:'Scanning - Rear'},
+  {id:'sk-scan-p',  name:'Scanning - Sides (Peripheral)'},
+  {id:'sk-scan-f',  name:'Scanning - Front'},
+  {id:'sk-trk',     name:'Visual - Tracking'},
+  {id:'sk-int',     name:'Visual - Intersections'},
+  {id:'sk-turns',   name:'Visual - Turns'},
+  {id:'sk-park',    name:'Visual - Parking/Backing'},
+  {cat:'Knowledge (Cognitive) Skills'},
+  {id:'sk-judgt',   name:'Judgment - Time'},
+  {id:'sk-judgs',   name:'Judgment - Space'},
+  {id:'sk-judgrw',  name:'Judgment - Right of Way'},
+  {id:'sk-dec',     name:'Decision-Making/Planning'},
+  {id:'sk-signs',   name:'Traffic - Signs'},
+  {id:'sk-lights',  name:'Traffic - Lights'},
+  {id:'sk-marks',   name:'Traffic - Markings'},
+  {id:'sk-rules',   name:'Rules of the Road'},
+  {id:'sk-ccmt',    name:'Commentary'},
+  {cat:'Awareness (Perceptual) Skills'},
+  {id:'sk-hazm',    name:'Hazard Management'},
+  {id:'sk-haza',    name:'Hazard Awareness'},
+  {id:'sk-risk',    name:'Risk Assessment'},
+  {id:'sk-pcmt',    name:'Commentary'}
+];
+
+var LESSONS = [
+  {title:'Lesson 1 (Hours 1-2)', items:['Pre-trip / Under the Hood (Exterior)','Basic Habits (Interior)','Demonstration Drive / Demo','Start and Stop','Lane Changing / Blind Zone Check','Turns - Right','Turns - Left']},
+  {title:'Lesson 2 (Hours 3-4)', items:['Intersections (Controlled/Uncontrolled)','Multi-Lane Roadways','Turns - Controlled Intersections','Turns - Multi-Lane Intersections','Clutch / Shifting','Backing','Parallel Parking','Angle / Perpendicular Parking','Up / Down Hill Parking']},
+  {title:'Lesson 3 (Hours 5-6)', items:['One-Way Streets','Railway Crossings','Traffic Circles','Highway / Freeway Driving','Hazard Awareness / Commentary','Hazard Management / Commentary']},
+  {title:'Lesson 4 (Hours 7-8)', items:['Merging / Weave Zones','2 & 3 Point Turns','Adverse Conditions / After Dark']},
+  {title:'Lesson 5 (Hours 9-10)', items:['Downtown','Independent Driving']}
+];
+
+var lpChecked = {};
+var skillsInited = false;
+
+function renderSkillsTable() {
+  var tbody = document.getElementById('skills-tbody');
+  if (!tbody) return;
+  var html = '';
+  SKILLS.forEach(function(s) {
+    if (s.cat) {
+      html += '<tr><td class="skill-cat" colspan="6">' + s.cat + '</td></tr>';
+    } else {
+      html += '<tr><td class="skill-name">' + s.name + '</td>';
+      for (var h = 1; h <= 5; h++) {
+        html += '<td style="text-align:center"><input type="text" id="' + s.id + '-h' + h + '" maxlength="3" placeholder="-"/></td>';
+      }
+      html += '</tr>';
+    }
+  });
+  tbody.innerHTML = html;
+}
+
+function renderLessonPlan() {
+  var wrap = document.getElementById('lesson-plan-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  LESSONS.forEach(function(lesson, li) {
+    var group = document.createElement('div');
+    group.className = 'lp-group';
+    var title = document.createElement('div');
+    title.className = 'lp-group-title';
+    title.textContent = lesson.title;
+    group.appendChild(title);
+    lesson.items.forEach(function(item, ii) {
+      var key = 'lp-' + li + '-' + ii;
+      var row = document.createElement('div');
+      row.className = 'lp-item';
+      var cb = document.createElement('div');
+      cb.className = 'lp-cb' + (lpChecked[key] ? ' checked' : '');
+      cb.innerHTML = lpChecked[key] ? '&#10003;' : '';
+      cb.onclick = (function(k, el) {
+        return function() {
+          lpChecked[k] = !lpChecked[k];
+          el.className = 'lp-cb' + (lpChecked[k] ? ' checked' : '');
+          el.innerHTML = lpChecked[k] ? '&#10003;' : '';
+        };
+      })(key, cb);
+      var lbl = document.createElement('div');
+      lbl.className = 'lp-label';
+      lbl.textContent = item;
+      row.appendChild(cb); row.appendChild(lbl);
+      group.appendChild(row);
+    });
+    wrap.appendChild(group);
+  });
+}
+
+function initPage2() {
+  if (!skillsInited) {
+    renderSkillsTable();
+    renderLessonPlan();
+    skillsInited = true;
+  }
+}
+
+function getSkillData() {
+  var data = {};
+  SKILLS.forEach(function(s) {
+    if (!s.id) return;
+    data[s.id] = [];
+    for (var h = 1; h <= 5; h++) {
+      var el = document.getElementById(s.id + '-h' + h);
+      data[s.id].push(el ? el.value.trim() : '');
+    }
+  });
+  return data;
+}
+
+function getLessonChecks() {
+  return LESSONS.map(function(lesson, li) {
+    return {
+      title: lesson.title,
+      all: lesson.items,
+      checked: lesson.items.filter(function(item, ii) { return !!lpChecked['lp-'+li+'-'+ii]; })
+    };
+  });
+}
+
+function getComments() {
+  var c = [];
+  for (var i = 1; i <= 5; i++) {
+    var el = document.getElementById('cmt-' + i);
+    c.push(el ? el.value.trim() : '');
+  }
+  return c;
+}
 
 function init() {
   // Tab buttons
