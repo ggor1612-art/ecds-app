@@ -1042,72 +1042,20 @@ function selectCmp(id) {
 
 // ── SESSIONS ──
 function makeSessRows(wrap, n, pfx) {
-  var wrapEl = document.getElementById(wrap);
-  wrapEl.innerHTML = '';
+  var h = '';
   for (var i = 1; i <= n; i++) {
-    var row = document.createElement('div');
-    row.className = 'ss';
-
-    // Number
-    var num = document.createElement('div');
-    num.className = 'ss-n';
-    num.textContent = i;
-    row.appendChild(num);
-
-    // Date
-    var dateF = document.createElement('div'); dateF.className = 'f';
-    var dateLbl = document.createElement('label'); dateLbl.textContent = 'Date';
-    var dateInp = document.createElement('input'); dateInp.type = 'date';
-    dateInp.id = pfx+'-d-'+i; dateInp.setAttribute('data-pfx', pfx);
-    dateInp.className = 'sess-date';
-    dateInp.addEventListener('change', function() { autoHrs(this.getAttribute('data-pfx')); });
-    dateF.appendChild(dateLbl); dateF.appendChild(dateInp);
-    row.appendChild(dateF);
-
-    // From
-    var fromF = document.createElement('div'); fromF.className = 'f';
-    var fromLbl = document.createElement('label'); fromLbl.textContent = 'From';
-    var fromInp = document.createElement('input'); fromInp.type = 'time'; fromInp.id = pfx+'-f-'+i;
-    fromF.appendChild(fromLbl); fromF.appendChild(fromInp);
-    row.appendChild(fromF);
-
-    // To
-    var toF = document.createElement('div'); toF.className = 'f';
-    var toLbl = document.createElement('label'); toLbl.textContent = 'To';
-    var toInp = document.createElement('input'); toInp.type = 'time'; toInp.id = pfx+'-t-'+i;
-    toF.appendChild(toLbl); toF.appendChild(toInp);
-    row.appendChild(toF);
-
-    // Instructor initials
-    var iiId = pfx+'-ii-'+i;
-    var iiWrap = document.createElement('div'); iiWrap.className = 'ini-field';
-    var iiLbl = document.createElement('label'); iiLbl.textContent = 'Instr';
-    var iiCWrap = document.createElement('div'); iiCWrap.className = 'ini-canvas-wrap';
-    var iiCanvas = document.createElement('canvas'); iiCanvas.className = 'ini-canvas';
-    iiCanvas.id = iiId; iiCanvas.width = 70; iiCanvas.height = 38;
-    var iiClear = document.createElement('button'); iiClear.className = 'ini-clear'; iiClear.textContent = 'clear';
-    (function(cid) { iiClear.addEventListener('click', function() { clearIni(cid); }); })(iiId);
-    iiCWrap.appendChild(iiCanvas); iiWrap.appendChild(iiLbl); iiWrap.appendChild(iiCWrap); iiWrap.appendChild(iiClear);
-    row.appendChild(iiWrap);
-
-    // Student initials
-    var siId = pfx+'-si-'+i;
-    var siWrap = document.createElement('div'); siWrap.className = 'ini-field';
-    var siLbl = document.createElement('label'); siLbl.textContent = 'Student';
-    var siCWrap = document.createElement('div'); siCWrap.className = 'ini-canvas-wrap';
-    var siCanvas = document.createElement('canvas'); siCanvas.className = 'ini-canvas';
-    siCanvas.id = siId; siCanvas.width = 70; siCanvas.height = 38;
-    var siClear = document.createElement('button'); siClear.className = 'ini-clear'; siClear.textContent = 'clear';
-    (function(cid) { siClear.addEventListener('click', function() { clearIni(cid); }); })(siId);
-    siCWrap.appendChild(siCanvas); siWrap.appendChild(siLbl); siWrap.appendChild(siCWrap); siWrap.appendChild(siClear);
-    row.appendChild(siWrap);
-
-    wrapEl.appendChild(row);
-
-    // Init drawing on canvases
-    initDrawCanvas(iiCanvas, 1.5);
-    initDrawCanvas(siCanvas, 1.5);
+    h += '<div class="ss">' +
+      '<div class="ss-n">' + i + '</div>' +
+      '<div class="f"><label>Date</label><input type="date" id="' + pfx + '-d-' + i + '" data-pfx="' + pfx + '" class="sess-date"/></div>' +
+      '<div class="f"><label>From</label><input type="time" id="' + pfx + '-f-' + i + '"/></div>' +
+      '<div class="f"><label>To</label><input type="time" id="' + pfx + '-t-' + i + '"/></div>' +
+      '</div>';
   }
+  document.getElementById(wrap).innerHTML = h;
+  // Attach auto-tally
+  document.querySelectorAll('.sess-date').forEach(function(el) {
+    el.addEventListener('change', function() { autoHrs(this.getAttribute('data-pfx')); });
+  });
 }
 function autoHrs(pfx) {
   var s = null;
@@ -1123,15 +1071,7 @@ function getSessData(pfx, n) {
     var de = document.getElementById(pfx+'-d-'+i);
     var fe = document.getElementById(pfx+'-f-'+i);
     var te = document.getElementById(pfx+'-t-'+i);
-    var ii = document.getElementById(pfx+'-ii-'+i);
-    var si = document.getElementById(pfx+'-si-'+i);
-    rows.push({
-      date: (de ? de.value : ''),
-      from: (fe ? fe.value : ''),
-      to: (te ? te.value : ''),
-      instrIni: ii ? (canvasHasContent(ii) ? ii.toDataURL('image/png') : '') : '',
-      stuIni:   si ? (canvasHasContent(si) ? si.toDataURL('image/png') : '') : ''
-    });
+    rows.push({ date: (de ? de.value : ''), from: (fe ? fe.value : ''), to: (te ? te.value : '') });
   }
   return rows;
 }
