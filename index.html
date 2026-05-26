@@ -1,4 +1,4 @@
-<!-- ECDS v2.1 - Signatures & Initials - 2026-05-26 12:27 -->
+<!-- ECDS v2.2 - 2026-05-26 14:54 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1051,6 +1051,13 @@ function selectCon(id) {
     var sd = document.getElementById('sig-date');
     if (sd && !sd.value) sd.value = new Date().toLocaleDateString('en-CA');
   }, 50);
+  setTimeout(function() {
+    var sc=document.getElementById('sig-student'),rc=document.getElementById('sig-school');
+    if(sc) initDraw(sc,2.5);
+    if(rc) initDraw(rc,2.5);
+    var sd=document.getElementById('sig-date');
+    if(sd&&!sd.value) sd.value=new Date().toLocaleDateString('en-CA');
+  },50);
   document.getElementById('con-body').innerHTML =
     '<div style="display:flex;gap:10px;align-items:center">' + avHtml(s, 48) +
     '<div><div style="font-size:15px;font-weight:700">' + s.name + '</div>' +
