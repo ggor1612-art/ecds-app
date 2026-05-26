@@ -1,4 +1,4 @@
-<!-- ECDS v2.9 - 2026-05-26 18:11 -->
+<!-- ECDS v3.0 - 2026-05-26 18:53 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -106,6 +106,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
 .sig-inner-label{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:10px;color:rgba(0,0,0,0.25);pointer-events:none;letter-spacing:.05em;text-transform:uppercase;font-weight:600}
 .sig-row{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
 .sig-hint{font-size:11px;color:var(--t2)}
+
+/* SKILLS TABLE */
+#skills-table td{padding:6px 6px;border-bottom:1px solid rgba(0,0,0,0.07);vertical-align:middle}
+#skills-table tr:nth-child(even) td{background:#fafafa}
+#skills-table .skill-name{font-size:12px;color:var(--t1);font-weight:500}
+#skills-table .skill-cat{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);padding-top:10px;padding-bottom:4px;background:#f0ede8}
+#skills-table input[type=text]{width:44px;height:30px;border:1px solid rgba(0,0,0,0.15);border-radius:5px;text-align:center;font-size:13px;font-weight:700;background:#fff;color:var(--navy);padding:0}
+#skills-table input[type=text]:focus{border-color:var(--navy);outline:none;box-shadow:0 0 0 2px rgba(26,58,92,.1)}
+/* LESSON PLAN */
+.lp-group{margin-bottom:10px}
+.lp-group-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);padding:6px 10px;background:#eef5ff;border-radius:6px;margin-bottom:6px}
+.lp-item{display:flex;align-items:center;gap:8px;padding:5px 4px;border-bottom:1px solid rgba(0,0,0,0.05)}
+.lp-item:last-child{border:none}
+.lp-cb{width:18px;height:18px;border:1.5px solid rgba(0,0,0,0.25);border-radius:3px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;-webkit-user-select:none;background:#fff}
+.lp-cb.checked{background:var(--navy);border-color:var(--navy);color:white}
+.lp-label{font-size:12px;color:var(--t1);flex:1}
+
 </style>
 </head>
 <body>
@@ -248,6 +265,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
         <div class="f"><label>Classroom Hours</label><input id="d-clh" type="number" min="0" max="30"/></div>
       </div>
     </div>
+    <!-- PAGE 2: OVERALL SKILLS -->
+    <div class="card">
+      <div class="csec">&#128200; Overall Skills Rating (Page 2)</div>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:12px;line-height:1.6">Rate each skill at each 2-hour lesson block. Leave blank if not yet covered.</p>
+
+      <!-- RATING SCALE -->
+      <div style="background:#f9f8f6;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.8">
+        <strong style="color:var(--t1);display:block;margin-bottom:4px">Grade Scale:</strong>
+        4.0 Continuous assistance &nbsp;|&nbsp; 5.0 Frequent assistance &nbsp;|&nbsp; 6.0 Occasional assistance<br/>
+        7.0 Minimal assistance &nbsp;|&nbsp; 7.5 Independent 75% &nbsp;|&nbsp; 8.0 Independent 80% &nbsp;|&nbsp; 9.0 Independent 90%
+      </div>
+
+      <!-- SKILL GRID TABLE -->
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table id="skills-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:420px">
+          <thead>
+            <tr style="background:var(--navy);color:white">
+              <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;min-width:160px">Skill</th>
+              <th style="padding:8px 6px;text-align:center;font-size:10px;width:52px">Hrs 1-2</th>
+              <th style="padding:8px 6px;text-align:center;font-size:10px;width:52px">Hrs 3-4</th>
+              <th style="padding:8px 6px;text-align:center;font-size:10px;width:52px">Hrs 5-6</th>
+              <th style="padding:8px 6px;text-align:center;font-size:10px;width:52px">Hrs 7-8</th>
+              <th style="padding:8px 6px;text-align:center;font-size:10px;width:52px">Hrs 9-10</th>
+            </tr>
+          </thead>
+          <tbody id="skills-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE 2: LESSON PLAN ACTIVITIES -->
+    <div class="card">
+      <div class="csec">&#9989; Suggested Lesson Plan Activities</div>
+      <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Check each activity when covered during training.</p>
+      <div id="lesson-plan-wrap"></div>
+    </div>
+
+    <!-- PAGE 2: INSTRUCTOR COMMENTS -->
+    <div class="card">
+      <div class="csec">&#128221; Instructor Comments</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="comments-wrap">
+        <div class="f"><label>Lesson 1 (Hrs 1-2)</label><textarea id="cmt-1" placeholder="Comments..." style="height:80px"></textarea></div>
+        <div class="f"><label>Lesson 2 (Hrs 3-4)</label><textarea id="cmt-2" placeholder="Comments..." style="height:80px"></textarea></div>
+        <div class="f"><label>Lesson 3 (Hrs 5-6)</label><textarea id="cmt-3" placeholder="Comments..." style="height:80px"></textarea></div>
+        <div class="f"><label>Lesson 4 (Hrs 7-8)</label><textarea id="cmt-4" placeholder="Comments..." style="height:80px"></textarea></div>
+        <div class="f"><label>Lesson 5 (Hrs 9-10)</label><textarea id="cmt-5" placeholder="Comments..." style="height:80px"></textarea></div>
+      </div>
+    </div>
+
     <div class="card"><button class="btn b" id="btn-dpl-dl">&#11015; Download DPLS0068 PDF</button></div>
   </div>
 </div>
@@ -768,6 +834,8 @@ function makeSessRows(wrap, n, pfx) {
   }
   // Init drawing on all canvases in this wrap
   wEl.querySelectorAll('.ini-canvas').forEach(function(c) { initDraw(c, 1.5); });
+  // Render page 2 content
+  setTimeout(function() { renderSkillsTable(); renderLessonPlan(); }, 50);
 }
 function autoHrs(pfx) {
   var s = null;
