@@ -1,4 +1,4 @@
-<!-- ECDS v2.8 - 2026-05-26 15:24 -->
+<!-- ECDS v2.9 - 2026-05-26 18:11 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,6 +97,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--b);color:#fff;padding:11px 24px;border-radius:22px;font-size:13px;font-weight:700;z-index:9999;opacity:0;transition:opacity .22s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .toast.on{opacity:1}
 #inp-cam,#inp-lib,#inp-att{display:none}
+/* SIGNATURE & INITIALS */
+.sig-wrap{margin-top:14px}
+.sig-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.sig-box{position:relative;border:2px solid var(--navy);border-radius:8px;background:#fff;overflow:hidden;touch-action:none}
+.sig-box::after{content:'';position:absolute;left:16px;right:16px;bottom:28px;border-bottom:1px dashed rgba(0,0,0,0.2);pointer-events:none}
+.sig-canvas{display:block;width:100%;height:130px;cursor:crosshair;touch-action:none}
+.sig-inner-label{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:10px;color:rgba(0,0,0,0.25);pointer-events:none;letter-spacing:.05em;text-transform:uppercase;font-weight:600}
+.sig-row{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
+.sig-hint{font-size:11px;color:var(--t2)}
 </style>
 </head>
 <body>
@@ -185,14 +194,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
     <div class="card">
       <div class="csec">&#9998; SIGNATURES</div>
       <div class="sig-wrap">
-        <div class="sig-lbl">Student / Guardian Signature</div>
-        <div class="sig-cw"><canvas id="sig-student" class="sig-canvas" width="600" height="120"></canvas></div>
-        <div class="sig-row"><span class="sig-hint">Sign above with finger</span><button class="btn b-ghost b-sm" id="clr-sig-student">&#8635; Clear</button></div>
+        <div class="sig-lbl">&#9998; Student / Guardian Signature</div>
+        <div class="sig-box">
+          <canvas id="sig-student" class="sig-canvas" width="600" height="130"></canvas>
+          <div class="sig-inner-label">Sign here</div>
+        </div>
+        <div class="sig-row"><span class="sig-hint">Draw signature with finger above</span><button class="btn b-ghost b-sm" id="clr-sig-student">&#8635; Clear</button></div>
       </div>
       <div class="sig-wrap">
-        <div class="sig-lbl">School Representative Signature</div>
-        <div class="sig-cw"><canvas id="sig-school" class="sig-canvas" width="600" height="120"></canvas></div>
-        <div class="sig-row"><span class="sig-hint">Sign above with finger</span><button class="btn b-ghost b-sm" id="clr-sig-school">&#8635; Clear</button></div>
+        <div class="sig-lbl">&#9998; School Representative Signature</div>
+        <div class="sig-box">
+          <canvas id="sig-school" class="sig-canvas" width="600" height="130"></canvas>
+          <div class="sig-inner-label">Sign here</div>
+        </div>
+        <div class="sig-row"><span class="sig-hint">Draw signature with finger above</span><button class="btn b-ghost b-sm" id="clr-sig-school">&#8635; Clear</button></div>
       </div>
       <div style="margin-top:10px">
         <div class="f"><label>Date Signed</label><input type="date" id="sig-date"/></div>
@@ -659,13 +674,11 @@ function selectCon(id) {
   setTimeout(function() {
     var sc = document.getElementById('sig-student');
     var rc = document.getElementById('sig-school');
-    if (sc) { sc._di = false; initDraw(sc, 2.5); }
-    if (rc) { rc._di = false; initDraw(rc, 2.5); }
+    // Reset and reinit drawing with baseline
+    if (sc) { sc._di = false; clearCanvas('sig-student'); initDraw(sc, 2.5); }
+    if (rc) { rc._di = false; clearCanvas('sig-school'); initDraw(rc, 2.5); }
     var sd = document.getElementById('sig-date');
     if (sd && !sd.value) sd.value = new Date().toLocaleDateString('en-CA');
-    // Clear canvases for fresh start each time a student is selected
-    if (sc) sc.getContext('2d').clearRect(0, 0, sc.width, sc.height);
-    if (rc) rc.getContext('2d').clearRect(0, 0, rc.width, rc.height);
   }, 100);
 }
 
@@ -1073,21 +1086,52 @@ function initDraw(canvas, lw) {
   if (canvas._di) return; canvas._di = true;
   var ctx = canvas.getContext('2d'), down = false, lx = 0, ly = 0;
   lw = lw || 2;
+
+  // Draw baseline for signature canvases (not initials)
+  if (lw >= 2) {
+    var bly = Math.round(canvas.height * 0.72);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(20, bly); ctx.lineTo(canvas.width - 20, bly);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function pos(e) {
     var r = canvas.getBoundingClientRect();
     var sx = canvas.width/r.width, sy = canvas.height/r.height;
     var src = e.touches ? e.touches[0] : e;
     return {x:(src.clientX-r.left)*sx, y:(src.clientY-r.top)*sy};
   }
-  function start(e) { e.preventDefault(); down=true; var p=pos(e); lx=p.x; ly=p.y; ctx.beginPath(); ctx.arc(lx,ly,lw/2,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill(); }
-  function draw(e) { if(!down) return; e.preventDefault(); var p=pos(e); ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(p.x,p.y); ctx.strokeStyle='#111'; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke(); lx=p.x; ly=p.y; }
+  function start(e) { e.preventDefault(); down=true; var p=pos(e); lx=p.x; ly=p.y; ctx.beginPath(); ctx.arc(lx,ly,lw/2,0,Math.PI*2); ctx.fillStyle='#1a1a1a'; ctx.fill(); }
+  function draw(e) { if(!down) return; e.preventDefault(); var p=pos(e); ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(p.x,p.y); ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke(); lx=p.x; ly=p.y; }
   function stop() { down=false; }
   canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',draw);
   canvas.addEventListener('mouseup',stop); canvas.addEventListener('mouseleave',stop);
   canvas.addEventListener('touchstart',start,{passive:false}); canvas.addEventListener('touchmove',draw,{passive:false});
   canvas.addEventListener('touchend',stop);
 }
-function clearCanvas(id) { var c=document.getElementById(id); if(c) c.getContext('2d').clearRect(0,0,c.width,c.height); }
+function clearCanvas(id) {
+  var c = document.getElementById(id);
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  // Redraw baseline for large signature pads
+  if (c.height >= 120) {
+    var bly = Math.round(c.height * 0.72);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(20, bly); ctx.lineTo(c.width - 20, bly);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 function hasContent(canvas) { if(!canvas) return false; var d=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data; for(var i=3;i<d.length;i+=4){if(d[i]>10)return true;} return false; }
 function getSig(id) { var c=document.getElementById(id); return (c&&hasContent(c)) ? c.toDataURL('image/png') : ''; }
 
