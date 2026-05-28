@@ -1,4 +1,4 @@
-<!-- ECDS v4.0 - 2026-05-28 15:22 -->
+<!-- ECDS v4.1 - 2026-05-28 15:38 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -951,8 +951,6 @@ function selectDpl(id) {
   for (var i = 0; i < students.length; i++) { if (students[i].id === id) { s = students[i]; break; } }
   if (!s) return;
   document.getElementById('dpl-panel').style.display = 'block';
-  // Wire auto-save on field changes
-  setTimeout(wireDplsAutoSave, 200);
 
   var D = s.dplsData || {};
   var n = s.licClass === 'Non-GDL' ? 6 : 10;
@@ -990,39 +988,46 @@ function selectDpl(id) {
     });
   }
 
-  // Init page 2 after DOM is ready, then restore skills/lessons/comments
+  // Init page 2 after DOM is ready, then restore saved data
   setTimeout(function() {
+    skillsInited = false; // Force re-init so skills table rebuilds
     initPage2();
-    // Restore skill grades
-    if (D.skills) {
-      Object.keys(D.skills).forEach(function(sid) {
-        var vals = D.skills[sid];
-        if (vals) vals.forEach(function(v, hi) {
-          var el = document.getElementById(sid + '-h' + (hi+1));
-          if (el) el.value = v || '';
-        });
-      });
-    }
-    // Restore lesson plan checkboxes
-    if (D.lessons) {
-      D.lessons.forEach(function(lesson, li) {
-        if (lesson.checked) {
-          lesson.all.forEach(function(item, ii) {
-            if (lesson.checked.indexOf(item) >= 0) {
-              lpChecked['lp-'+li+'-'+ii] = true;
-            }
+
+    // Restore skill grades after table is built
+    setTimeout(function() {
+      if (D.skills) {
+        Object.keys(D.skills).forEach(function(sid) {
+          var vals = D.skills[sid];
+          if (vals) vals.forEach(function(v, hi) {
+            var el = document.getElementById(sid + '-h' + (hi+1));
+            if (el && v) el.value = v;
           });
-        }
-      });
-      renderLessonPlan();
-    }
-    // Restore comments
-    if (D.comments) {
-      D.comments.forEach(function(cmt, i) {
-        sv('cmt-'+(i+1), cmt || '');
-      });
-    }
-  }, 150);
+        });
+      }
+      // Restore lesson checkboxes
+      lpChecked = {};
+      if (D.lessons) {
+        D.lessons.forEach(function(lesson, li) {
+          if (lesson.checked && lesson.all) {
+            lesson.all.forEach(function(item, ii) {
+              if (lesson.checked.indexOf(item) >= 0) {
+                lpChecked['lp-'+li+'-'+ii] = true;
+              }
+            });
+          }
+        });
+        renderLessonPlan();
+      }
+      // Restore comments
+      if (D.comments) {
+        D.comments.forEach(function(cmt, i) {
+          sv('cmt-'+(i+1), cmt || '');
+        });
+      }
+      // Wire auto-save now that everything is populated
+      wireDplsAutoSave();
+    }, 200);
+  }, 100);
 }
 
 function selectCmp(id) {
@@ -1358,9 +1363,10 @@ function makeDpl() {
   pS(doc, y, W, M, 'Student signature', 'Edmonton Car Driving School Representative');
   doc.setFontSize(7); doc.setTextColor(155,155,155);
   doc.text('Protected A - Alberta Transportation and Economic Corridors - TEC.LicensingTraining@gov.ab.ca', M, y+18, {maxWidth: W-M*2});
-  doc.save('DPLS0068_' + st.name.replace(/\s+/g, '_') + '_' + td() + '.pdf');
+  // Save data FIRST, then download PDF
   saveDplsToStudent(st.id);
   markDoc(st.id, 'hasDpl');
+  doc.save('DPLS0068_' + st.name.replace(/\s+/g, '_') + '_' + td() + '.pdf');
   renderHome(); toast('DPLS0068 downloaded');
 }
 
@@ -1424,7 +1430,7 @@ function makeCmp() {
     for (var _ci=0;_ci<students.length;_ci++){if(students[_ci].id===selCmp){students[_ci]=_cst;break;}}
     autoSave();
   }
-  toast('Completion PDF downloaded');
+  toast('Completion saved and PDF downloaded');
 }
 
 // ── WIRE UP ALL EVENT LISTENERS ──
@@ -1628,7 +1634,11 @@ function printFullRecord(id) {
   var _jspdfLib = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!_jspdfLib) { toast('PDF library not loaded - check internet connection'); return; }
 
-  // Use stored DPLS/completion data, falling back to sensible defaults
+  // Check if data has been saved
+  if (!st.dplsData && !st.cmpData) {
+    toast('Please fill and save DPLS0068 form first before printing full record');
+    return;
+  }
   var D = st.dplsData || {};
   var C = st.cmpData || {};
 
@@ -1947,8 +1957,8 @@ function saveDplsToStudent(id) {
     lessons: getLessonChecks(),
     comments:getComments()
   };
-  // Also save completion data if on completion tab
-  st.cmpData = {
+  // Only update cmpData if completion tab fields have values
+  var newCmp = {
     ivGrade: gv('c-ivg'),
     clGrade: gv('c-clg'),
     overall: gv('c-ovr'),
@@ -1956,6 +1966,12 @@ function saveDplsToStudent(id) {
     clHrs:   document.getElementById('c-clh') ? document.getElementById('c-clh').value : '',
     notes:   gv('c-note')
   };
+  // Only overwrite if there is actual completion data
+  if (newCmp.ivGrade || newCmp.clGrade || newCmp.overall || newCmp.notes) {
+    st.cmpData = newCmp;
+  } else if (!st.cmpData) {
+    st.cmpData = newCmp; // First time setup
+  }
   for (var i = 0; i < students.length; i++) {
     if (students[i].id === id) { students[i] = st; break; }
   }
