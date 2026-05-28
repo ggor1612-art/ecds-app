@@ -1,4 +1,4 @@
-<!-- ECDS v3.4 - 2026-05-28 02:31 -->
+<!-- ECDS v3.5 - 2026-05-28 02:59 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -440,10 +440,22 @@ function doSave() {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'ECDS_Students.json';
+    // Build filename from all students' initials + lic numbers
+    var fname = 'ECDS_Students.json';
+    if (students.length === 1) {
+      var s0 = students[0];
+      var parts = (s0.name || '').split(' ');
+      var initials = parts.map(function(p){ return p[0] || ''; }).join('').toUpperCase();
+      var lic = (s0.lic || '').replace(/[^a-zA-Z0-9]/g, '');
+      fname = 'ECDS_' + initials + (lic ? '_' + lic : '') + '.json';
+    } else if (students.length > 1) {
+      // Multiple students: use school abbreviation + count
+      fname = 'ECDS_' + students.length + 'Students.json';
+    }
+    a.download = fname;
     document.body.appendChild(a); a.click();
     setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-    toast('Saved as ECDS_Students.json — replace the old file when prompted');
+    toast('Saved as ' + fname);
   } catch(e) { toast('Save failed: ' + e.message); }
 }
 function doLoad(e) {
