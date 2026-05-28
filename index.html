@@ -1,4 +1,4 @@
-<!-- ECDS v3.3 - 2026-05-26 20:06 -->
+<!-- ECDS v3.4 - 2026-05-28 02:31 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -195,6 +195,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
       <div class="co" data-cls="Non-GDL"><div class="co-t">Class 5 Non-GDL</div><div class="co-d">6 hrs in-vehicle &middot; 15 in-class</div><div class="co-p">$450</div></div>
       <div class="co" data-cls="Brush-up"><div class="co-t">Hourly Lessons</div><div class="co-d">Brush-up sessions</div><div class="co-p">$220/2hrs</div></div>
       <div class="co" data-cls="Other"><div class="co-t">Other</div><div class="co-d">Custom arrangement</div><div class="co-p">--</div></div>
+    </div>
+    <div id="other-note-wrap" style="display:none;margin-top:8px">
+      <div class="f"><label>Describe Course / Other Arrangement</label><input id="r-other-note" placeholder="e.g. 14 hrs in-vehicle, refresher course, commercial prep..."/></div>
     </div>
   </div>
   <div class="brow" id="reg-btns"></div>
@@ -436,10 +439,11 @@ function doSave() {
     var blob = new Blob([JSON.stringify(students, null, 2)], {type: 'application/json'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url; a.download = 'ECDS_' + td() + '.json';
+    a.href = url;
+    a.download = 'ECDS_Students.json';
     document.body.appendChild(a); a.click();
     setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-    toast('Saved as ECDS_' + td() + '.json');
+    toast('Saved as ECDS_Students.json — replace the old file when prompted');
   } catch(e) { toast('Save failed: ' + e.message); }
 }
 function doLoad(e) {
@@ -563,6 +567,9 @@ function clearReg() {
   document.getElementById('spin').style.display = 'none';
   document.querySelectorAll('.co').forEach(function(x, i) { x.classList.toggle('on', i === 0); });
   selCls = 'GDL';
+  sv('r-other-note', '');
+  var owrap = document.getElementById('other-note-wrap');
+  if (owrap) owrap.style.display = 'none';
 }
 function buildStu(id) {
   return {
@@ -571,7 +578,8 @@ function buildStu(id) {
     postal: gv('r-post'), gender: gv('r-gen'), dob: gv('r-dob'), minor: isMinor,
     lic: gv('r-lic'), type: gv('r-type'), inst: gv('r-inst'),
     issue: gv('r-iss'), exp: gv('r-exp'), reg: gv('r-reg'),
-    licClass: selCls, photo: photo, hasCon: false, hasDpl: false
+    licClass: selCls, otherNote: selCls === 'Other' ? gv('r-other-note') : '',
+    photo: photo, hasCon: false, hasDpl: false
   };
 }
 function saveStu() {
@@ -689,6 +697,12 @@ function editStu(id) {
   document.getElementById('tgl-m').classList.toggle('on', isMinor);
   if (s.photo) { var img = document.getElementById('ph-img'); img.src = s.photo; img.style.display = 'block'; }
   document.querySelectorAll('.co').forEach(function(x) { x.classList.toggle('on', x.getAttribute('data-cls') === s.licClass); });
+  // Restore Other note and show field if needed
+  var wrap = document.getElementById('other-note-wrap');
+  if (wrap) {
+    sv('r-other-note', s.otherNote || '');
+    wrap.style.display = s.licClass === 'Other' ? 'block' : 'none';
+  }
   goTab('reg');
 }
 
@@ -1412,7 +1426,10 @@ function printFullRecord(id) {
     var ct={GDL:'[X] Class 5 GDL - 10 hrs in-vehicle & 15 hrs in-class - $699','Non-GDL':'[X] Class 5 Non-GDL - 6 hrs in-vehicle & 15 hrs in-class - $450','Brush-up':'[X] Hourly Lessons - $220 per 2 hrs',Other:'[X] Other'};
     doc.setFillColor(237,244,252);doc.roundedRect(M,y,W-M*2,24,2,2,'F');
     doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(26,58,92);doc.text('Course Enrolled',M+4,y+7);
-    doc.setFont('helvetica','normal');doc.setTextColor(35,35,35);doc.text(ct[st.licClass]||st.licClass,M+4,y+14);
+    doc.setFont('helvetica','normal');doc.setTextColor(35,35,35);
+    var _ctTxt = ct[st.licClass]||st.licClass;
+    if(st.licClass==='Other'&&st.otherNote) _ctTxt += '  ('+st.otherNote+')';
+    doc.text(_ctTxt,M+4,y+14);
     if(st.minor)doc.text('MINOR - guardian signature required.',M+4,y+21);
     y+=32;
 
@@ -1735,6 +1752,9 @@ function init() {
       document.querySelectorAll('.co').forEach(function(x) { x.classList.remove('on'); });
       this.classList.add('on');
       selCls = this.getAttribute('data-cls');
+      // Show/hide Other note field
+      var wrap = document.getElementById('other-note-wrap');
+      if (wrap) wrap.style.display = selCls === 'Other' ? 'block' : 'none';
     };
   });
 
