@@ -1,4 +1,4 @@
-<!-- ECDS v3.9 - 2026-05-28 03:36 -->
+<!-- ECDS v4.0 - 2026-05-28 15:22 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -913,6 +913,37 @@ function selectCon(id) {
   }, 100);
 }
 
+
+// ── DPLS AUTO-SAVE ────────────────────────────────────────────────────
+var dplsSaveTimer = null;
+function debouncedSaveDpls() {
+  if (!selDpl) return;
+  clearTimeout(dplsSaveTimer);
+  dplsSaveTimer = setTimeout(function() {
+    saveDplsToStudent(selDpl);
+  }, 800); // Save 800ms after last change
+}
+
+// Wire DPLS field change listeners (called after panel is shown)
+function wireDplsAutoSave() {
+  var ids = ['d-iv','d-cl','d-cert','d-cdt','d-cnd','d-ivg','d-clg','d-ovr','d-ivh','d-clh'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', debouncedSaveDpls);
+      el.addEventListener('change', debouncedSaveDpls);
+    }
+  });
+  // Wire comment textareas
+  for (var i = 1; i <= 5; i++) {
+    var el = document.getElementById('cmt-' + i);
+    if (el) el.addEventListener('input', debouncedSaveDpls);
+  }
+  // Wire skill inputs (delegated on the table)
+  var tbody = document.getElementById('skills-tbody');
+  if (tbody) tbody.addEventListener('input', debouncedSaveDpls);
+}
+
 function selectDpl(id) {
   selDpl = id;
   renderSel('dpl-list', selDpl, selectDpl);
@@ -920,15 +951,78 @@ function selectDpl(id) {
   for (var i = 0; i < students.length; i++) { if (students[i].id === id) { s = students[i]; break; } }
   if (!s) return;
   document.getElementById('dpl-panel').style.display = 'block';
-  sv('d-iv', s.inst);
+  // Wire auto-save on field changes
+  setTimeout(wireDplsAutoSave, 200);
+
+  var D = s.dplsData || {};
   var n = s.licClass === 'Non-GDL' ? 6 : 10;
   document.getElementById('iv-lbl').textContent = '(' + n + ' sessions / ' + (n*2) + ' hrs)';
-  document.getElementById('d-ivh').value = n;
-  document.getElementById('d-clh').value = 15;
+
+  // Restore saved instructor fields
+  sv('d-iv',   D.ivInst  || s.inst || '');
+  sv('d-cl',   D.clInst  || '');
+  sv('d-cert', D.cert    || '');
+  sv('d-cdt',  D.certDt  || '');
+  sv('d-cnd',  D.cond    || s.type || '');
+  sv('d-ivg',  D.ivGrade || '');
+  sv('d-clg',  D.clGrade || '');
+  sv('d-ovr',  D.overall || '');
+  document.getElementById('d-ivh').value = D.ivHrs || n;
+  document.getElementById('d-clh').value = D.clHrs || 15;
+
+  // Build session rows then restore saved session data
   makeSessRows('iv-wrap', n, 'iv');
   makeSessRows('cl-wrap', 6, 'cl');
-  // Init page 2 after DOM is ready
-  setTimeout(initPage2, 100);
+
+  // Restore session dates/times
+  if (D.ivSess && D.ivSess.length) {
+    D.ivSess.forEach(function(sess, i) {
+      sv('iv-d-'+(i+1), sess.date || '');
+      sv('iv-f-'+(i+1), sess.from || '');
+      sv('iv-t-'+(i+1), sess.to   || '');
+    });
+  }
+  if (D.clSess && D.clSess.length) {
+    D.clSess.forEach(function(sess, i) {
+      sv('cl-d-'+(i+1), sess.date || '');
+      sv('cl-f-'+(i+1), sess.from || '');
+      sv('cl-t-'+(i+1), sess.to   || '');
+    });
+  }
+
+  // Init page 2 after DOM is ready, then restore skills/lessons/comments
+  setTimeout(function() {
+    initPage2();
+    // Restore skill grades
+    if (D.skills) {
+      Object.keys(D.skills).forEach(function(sid) {
+        var vals = D.skills[sid];
+        if (vals) vals.forEach(function(v, hi) {
+          var el = document.getElementById(sid + '-h' + (hi+1));
+          if (el) el.value = v || '';
+        });
+      });
+    }
+    // Restore lesson plan checkboxes
+    if (D.lessons) {
+      D.lessons.forEach(function(lesson, li) {
+        if (lesson.checked) {
+          lesson.all.forEach(function(item, ii) {
+            if (lesson.checked.indexOf(item) >= 0) {
+              lpChecked['lp-'+li+'-'+ii] = true;
+            }
+          });
+        }
+      });
+      renderLessonPlan();
+    }
+    // Restore comments
+    if (D.comments) {
+      D.comments.forEach(function(cmt, i) {
+        sv('cmt-'+(i+1), cmt || '');
+      });
+    }
+  }, 150);
 }
 
 function selectCmp(id) {
@@ -938,7 +1032,16 @@ function selectCmp(id) {
   document.getElementById('cmp-panel').style.display = 'block';
   var s = null;
   for (var i = 0; i < students.length; i++) { if (students[i].id === id) { s = students[i]; break; } }
-  if (s) { document.getElementById('c-ivh').value = s.licClass === 'Non-GDL' ? 6 : 10; document.getElementById('c-clh').value = 15; }
+  if (!s) return;
+  var C = s.cmpData || {};
+  var D = s.dplsData || {};
+  // Restore saved completion data, fall back to DPLS grades, then defaults
+  sv('c-ivg', C.ivGrade || D.ivGrade || '');
+  sv('c-clg', C.clGrade || D.clGrade || '');
+  sv('c-ovr', C.overall || D.overall || '');
+  sv('c-note', C.notes  || '');
+  document.getElementById('c-ivh').value = C.ivHrs || D.ivHrs || (s.licClass === 'Non-GDL' ? 6 : 10);
+  document.getElementById('c-clh').value = C.clHrs || D.clHrs || 15;
 }
 
 // ── SESSIONS ──
@@ -958,19 +1061,21 @@ function makeSessRows(wrap, n, pfx) {
     var dl = document.createElement('label'); dl.textContent = 'Date';
     var di = document.createElement('input'); di.type = 'date';
     di.id = pfx+'-d-'+i; di.setAttribute('data-pfx', pfx); di.className = 'sess-date';
-    di.addEventListener('change', function() { autoHrs(this.getAttribute('data-pfx')); });
+    di.addEventListener('change', function() { autoHrs(this.getAttribute('data-pfx')); debouncedSaveDpls(); });
     df.appendChild(dl); df.appendChild(di); row.appendChild(df);
 
     // From
     var ff = document.createElement('div'); ff.className = 'f';
     var fl = document.createElement('label'); fl.textContent = 'From';
     var fi = document.createElement('input'); fi.type = 'time'; fi.id = pfx+'-f-'+i;
+    fi.addEventListener('change', debouncedSaveDpls);
     ff.appendChild(fl); ff.appendChild(fi); row.appendChild(ff);
 
     // To
     var tf = document.createElement('div'); tf.className = 'f';
     var tl = document.createElement('label'); tl.textContent = 'To';
     var ti = document.createElement('input'); ti.type = 'time'; ti.id = pfx+'-t-'+i;
+    ti.addEventListener('change', debouncedSaveDpls);
     tf.appendChild(tl); tf.appendChild(ti); row.appendChild(tf);
 
     // Instructor initials
