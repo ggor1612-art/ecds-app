@@ -1,4 +1,4 @@
-<!-- ECDS v4.4 - 2026-05-28 16:14 -->
+<!-- ECDS v4.5 - 2026-05-28 23:19 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2215,7 +2215,8 @@ function saveDplsToStudent(id) {
   } else if (!st.cmpData) {
     st.cmpData = newCmp; // First time setup
   }
-  // Also save contract signature if available
+  // Only save contract signatures if they actually have content drawn
+  // (don't overwrite saved signatures when called from DPLS tab)
   var stuSigData = getSig('sig-student');
   var schSigData = getSig('sig-school');
   var sigDateData = document.getElementById('sig-date') ? document.getElementById('sig-date').value : '';
@@ -2225,6 +2226,8 @@ function saveDplsToStudent(id) {
     if (schSigData) st.conData.schSig = schSigData;
     if (sigDateData) st.conData.sigDate = sigDateData;
   }
+  // If no signatures on screen but we have saved ones, keep them
+  // (don't clear them just because DPLS tab is open)
   for (var i = 0; i < students.length; i++) {
     if (students[i].id === id) { students[i] = st; break; }
   }
@@ -2370,6 +2373,94 @@ function getComments() {
     c.push(el ? el.value.trim() : '');
   }
   return c;
+}
+
+
+// ── DRAWING ENGINE ────────────────────────────────────────────────────
+function initDraw(canvas, lw) {
+  if (canvas._di) return;
+  canvas._di = true;
+  var ctx = canvas.getContext('2d');
+  lw = lw || 2;
+  var down = false, lx = 0, ly = 0;
+
+  // Draw dashed baseline for large signature pads
+  if (lw >= 2) {
+    var bly = Math.round(canvas.height * 0.72);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();
+    ctx.moveTo(20, bly); ctx.lineTo(canvas.width - 20, bly);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function getPos(e) {
+    var r = canvas.getBoundingClientRect();
+    var sx = canvas.width / r.width;
+    var sy = canvas.height / r.height;
+    var src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
+  }
+  function start(e) {
+    e.preventDefault(); down = true;
+    var p = getPos(e); lx = p.x; ly = p.y;
+    ctx.beginPath(); ctx.arc(lx, ly, lw/2, 0, Math.PI*2);
+    ctx.fillStyle = '#1a1a1a'; ctx.fill();
+  }
+  function draw(e) {
+    if (!down) return; e.preventDefault();
+    var p = getPos(e);
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = lw;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+    lx = p.x; ly = p.y;
+  }
+  function stop() { down = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stop);
+  canvas.addEventListener('mouseleave', stop);
+  canvas.addEventListener('touchstart', start, {passive: false});
+  canvas.addEventListener('touchmove', draw, {passive: false});
+  canvas.addEventListener('touchend', stop);
+}
+
+function clearCanvas(id) {
+  var c = document.getElementById(id);
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  // Redraw baseline for large signature pads
+  if (c.height >= 100) {
+    var bly = Math.round(c.height * 0.72);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();
+    ctx.moveTo(20, bly); ctx.lineTo(c.width - 20, bly);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function hasContent(canvas) {
+  if (!canvas) return false;
+  try {
+    var d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    for (var i = 3; i < d.length; i += 4) { if (d[i] > 10) return true; }
+  } catch(e) {}
+  return false;
+}
+
+function getSig(id) {
+  var c = document.getElementById(id);
+  if (!c || !hasContent(c)) return '';
+  try { return c.toDataURL('image/png'); } catch(e) { return ''; }
 }
 
 function init() {
