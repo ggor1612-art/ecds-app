@@ -1,4 +1,4 @@
-<!-- ECDS v4.5 - 2026-05-28 23:19 -->
+<!-- ECDS v4.6 - 2026-05-28 23:32 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1136,9 +1136,26 @@ function autoHrs(pfx) {
   var s = null;
   for (var i = 0; i < students.length; i++) { if (students[i].id === selDpl) { s = students[i]; break; } }
   var n = pfx === 'iv' ? (s && s.licClass === 'Non-GDL' ? 6 : 10) : 6;
-  var c = 0;
-  for (var i = 1; i <= n; i++) { var el = document.getElementById(pfx + '-d-' + i); if (el && el.value) c++; }
-  document.getElementById(pfx === 'iv' ? 'd-ivh' : 'd-clh').value = c * 2;
+  var totalMins = 0;
+  for (var i = 1; i <= n; i++) {
+    var fromEl = document.getElementById(pfx + '-f-' + i);
+    var toEl   = document.getElementById(pfx + '-t-' + i);
+    var dateEl = document.getElementById(pfx + '-d-' + i);
+    if (fromEl && toEl && fromEl.value && toEl.value && dateEl && dateEl.value) {
+      // Calculate actual duration from From/To times
+      var fp = fromEl.value.split(':'), tp = toEl.value.split(':');
+      var fromMins = parseInt(fp[0],10)*60 + parseInt(fp[1],10);
+      var toMins   = parseInt(tp[0],10)*60 + parseInt(tp[1],10);
+      var diff = toMins - fromMins;
+      if (diff > 0) totalMins += diff;
+    } else if (dateEl && dateEl.value) {
+      // Date filled but no times - count as 2 hrs (default session length)
+      totalMins += 120;
+    }
+  }
+  // Round to nearest 0.5 hr
+  var totalHrs = Math.round(totalMins / 30) / 2;
+  document.getElementById(pfx === 'iv' ? 'd-ivh' : 'd-clh').value = totalHrs || 0;
 }
 function getSessData(pfx, n) {
   var rows = [];
@@ -2287,7 +2304,7 @@ function renderSkillsTable() {
     } else {
       html += '<tr><td class="skill-name">' + s.name + '</td>';
       for (var h = 1; h <= 5; h++) {
-        html += '<td style="text-align:center"><input type="text" id="' + s.id + '-h' + h + '" maxlength="3" placeholder="-" style="width:44px;height:30px;border:1px solid rgba(0,0,0,0.15);border-radius:5px;text-align:center;font-size:13px;font-weight:700;background:#fff;color:var(--navy);padding:0"/></td>';
+        html += '<td style="text-align:center"><input type="text" id="' + s.id + '-h' + h + '" maxlength="3" placeholder="-" inputmode="decimal" pattern="[4-9](\.5)?|D|N/?A" style="width:44px;height:30px;border:1px solid rgba(0,0,0,0.15);border-radius:5px;text-align:center;font-size:13px;font-weight:700;background:#fff;color:var(--navy);padding:0" onkeypress="return validateSkillKey(event)" oninput="formatSkillVal(this)"/></td>';
       }
       html += '</tr>';
     }
@@ -2461,6 +2478,40 @@ function getSig(id) {
   var c = document.getElementById(id);
   if (!c || !hasContent(c)) return '';
   try { return c.toDataURL('image/png'); } catch(e) { return ''; }
+}
+
+
+// ── SKILL INPUT VALIDATION ────────────────────────────────────────────
+function validateSkillKey(e) {
+  var ch = String.fromCharCode(e.which || e.keyCode);
+  var cur = e.target.value;
+  // Allow: digits 4-9, decimal point, D (denied), N (N/A), backspace, delete, tab
+  if (e.which === 8 || e.which === 9 || e.which === 46) return true;
+  // Allow D or N for Denied / N/A
+  if (ch === 'D' || ch === 'd' || ch === 'N' || ch === 'n' || ch === '/') return true;
+  // Allow digits
+  if (ch >= '0' && ch <= '9') return true;
+  // Allow one decimal point
+  if (ch === '.' && cur.indexOf('.') < 0) return true;
+  // Block everything else
+  e.preventDefault(); return false;
+}
+
+function formatSkillVal(el) {
+  var v = el.value.toUpperCase().trim();
+  // Auto-format: if just a number, validate range 4.0-9.0
+  var num = parseFloat(v);
+  if (!isNaN(num)) {
+    // Only allow 4.0 to 9.0 in steps of 0.5
+    if (num < 4) { el.style.borderColor = '#e55'; el.title = 'Min grade is 4.0'; }
+    else if (num > 9) { el.style.borderColor = '#e55'; el.title = 'Max grade is 9.0'; }
+    else { el.style.borderColor = 'rgba(26,58,92,0.4)'; el.title = ''; }
+  } else {
+    // Allow D (Denied) or N/A
+    if (v === '' || v === 'D' || v === 'N/A' || v === 'NA') {
+      el.style.borderColor = 'rgba(0,0,0,0.15)'; el.title = '';
+    }
+  }
 }
 
 function init() {
