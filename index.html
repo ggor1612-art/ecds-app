@@ -1,4 +1,4 @@
-<!-- ECDS v3.5 - 2026-05-28 02:59 -->
+<!-- ECDS v3.8 - 2026-05-28 03:12 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -128,10 +128,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
 <body>
 <div id="toast" class="toast"></div>
 <div class="topbar">
-  <div><div class="n">Edmonton Car Driving School</div><div class="s">D.R.I.V.E.R. Tracker &middot; <span id="stu-count">0 students</span></div></div>
-  <div class="tr">
-    <button class="btn g sm" id="btn-save">&#11015; Save</button>
-    <label class="btn sm" style="cursor:pointer">&#11014; Load<input type="file" accept=".json" id="inp-load" style="display:none"/></label>
+  <div><div class="n">Edmonton Car Driving School</div><div class="s">D.R.I.V.E.R. Tracker &middot; Auto-save ON &middot; <span id="stu-count">0 students</span></div></div>
+  <div class="tr" style="display:flex;gap:5px;align-items:center">
+    <span id="save-ind" style="font-size:9px;color:rgba(255,255,255,0.45);white-space:nowrap"></span>
+    <button class="btn b-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25)" id="btn-cloud-save">&#9729; iCloud</button>
+    <button class="btn g sm" id="btn-save">&#11015; Export</button>
+    <label class="btn b-sm" style="background:rgba(255,255,255,0.12);color:white;border:1px solid rgba(255,255,255,0.2);cursor:pointer">&#11014; Import<input type="file" accept=".json" id="inp-load" style="display:none"/></label>
   </div>
 </div>
 <div class="tabs">
@@ -434,29 +436,128 @@ function avHtml(s, sz) {
 }
 
 // ── SAVE / LOAD ──
+
+// ── CLOUD SAVE (iCloud Drive / Files on iOS, Downloads on Mac) ────────
+function cloudSave() {
+  if (!students.length) { toast('No students to save'); return; }
+  try {
+    var json = JSON.stringify(students, null, 2);
+    var blob = new Blob([json], {type: 'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+
+    // Build descriptive filename
+    var fname;
+    if (students.length === 1) {
+      var s0 = students[0];
+      var parts = (s0.name||'').split(' ');
+      var ini = parts.map(function(p){return p[0]||'';}).join('').toUpperCase();
+      var lic = (s0.lic||'').replace(/[^a-zA-Z0-9]/g,'');
+      fname = 'ECDS_' + ini + (lic ? '_'+lic : '') + '.json';
+    } else {
+      fname = 'ECDS_' + students.length + 'Students.json';
+    }
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+
+    // On iOS, after download show guidance
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      setTimeout(function() {
+        showCloudGuide(fname);
+      }, 800);
+    } else {
+      toast('Saved as ' + fname);
+    }
+  } catch(e) { toast('Save failed: ' + e.message); }
+}
+
+function showCloudGuide(fname) {
+  // Show a modal with iCloud save instructions
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:flex;align-items:flex-end;justify-content:center;padding:0 12px 12px';
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:500px">' +
+    '<div style="font-size:16px;font-weight:700;color:#1a3a5c;margin-bottom:4px">&#9729; Save to iCloud Drive</div>' +
+    '<div style="font-size:13px;color:#666;margin-bottom:14px">File downloaded: <strong>'+fname+'</strong></div>' +
+    '<div style="background:#f5f3ef;border-radius:8px;padding:12px;font-size:13px;line-height:1.9;margin-bottom:14px">' +
+    '<b>To save to iCloud:</b><br>' +
+    '1. Tap the <strong>Downloads</strong> button in Safari (&#11015; icon in address bar)<br>' +
+    '2. Press and hold the file &rarr; tap <strong>Share</strong><br>' +
+    '3. Tap <strong>Save to Files</strong> &rarr; choose <strong>iCloud Drive</strong><br>' +
+    '4. Select a folder &rarr; tap <strong>Save</strong><br><br>' +
+    '<b>Next time to restore:</b> Tap <strong>Import</strong> and pick this file from iCloud Drive.' +
+    '</div>' +
+    '<button onclick="this.closest(\'div\').parentElement.remove()" style="background:#1a3a5c;color:white;border:none;padding:12px;border-radius:8px;font-size:15px;font-weight:700;width:100%;cursor:pointer">Got it</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+}
+
+// ── AUTO-SAVE to localStorage (runs silently on every change) ────────
+function autoSave() {
+  try {
+    var slim = students.map(function(s) {
+      var copy = {};
+      for (var k in s) copy[k] = k === 'photo' ? (s.photo ? '__PHOTO__'+s.id : '') : s[k];
+      return copy;
+    });
+    localStorage.setItem('ecds_v1', JSON.stringify(slim));
+    students.forEach(function(s) {
+      if (s.photo && s.photo.length > 10) {
+        try { localStorage.setItem('ecds_photo_'+s.id, s.photo); } catch(e) {}
+      }
+    });
+    // Update save indicator
+    var ind = document.getElementById('save-ind');
+    if (ind) {
+      var now = new Date();
+      ind.textContent = 'Saved ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    }
+  } catch(e) { console.warn('AutoSave failed:', e.message); }
+}
+
+function autoLoad() {
+  try {
+    var raw = localStorage.getItem('ecds_v1');
+    if (!raw) return false;
+    var data = JSON.parse(raw);
+    // Restore photos
+    data.forEach(function(s) {
+      if (s.photo === '__PHOTO__'+s.id) {
+        s.photo = localStorage.getItem('ecds_photo_'+s.id) || '';
+      }
+    });
+    students = data;
+    return true;
+  } catch(e) { return false; }
+}
+
+// Export backup (manual — gives user a JSON file)
 function doSave() {
   try {
     var blob = new Blob([JSON.stringify(students, null, 2)], {type: 'application/json'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    // Build filename from all students' initials + lic numbers
-    var fname = 'ECDS_Students.json';
+    var fname = 'ECDS_Backup.json';
     if (students.length === 1) {
       var s0 = students[0];
-      var parts = (s0.name || '').split(' ');
-      var initials = parts.map(function(p){ return p[0] || ''; }).join('').toUpperCase();
-      var lic = (s0.lic || '').replace(/[^a-zA-Z0-9]/g, '');
-      fname = 'ECDS_' + initials + (lic ? '_' + lic : '') + '.json';
+      var parts = (s0.name||'').split(' ');
+      var ini = parts.map(function(p){return p[0]||'';}).join('').toUpperCase();
+      var lic = (s0.lic||'').replace(/[^a-zA-Z0-9]/g,'');
+      fname = 'ECDS_' + ini + (lic?'_'+lic:'') + '.json';
     } else if (students.length > 1) {
-      // Multiple students: use school abbreviation + count
-      fname = 'ECDS_' + students.length + 'Students.json';
+      fname = 'ECDS_' + students.length + 'Students_Backup.json';
     }
     a.download = fname;
     document.body.appendChild(a); a.click();
-    setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-    toast('Saved as ' + fname);
-  } catch(e) { toast('Save failed: ' + e.message); }
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    toast('Backup exported as ' + fname);
+  } catch(e) { toast('Export failed: ' + e.message); }
 }
 function doLoad(e) {
   var f = e.target.files[0]; if (!f) return;
@@ -465,8 +566,8 @@ function doLoad(e) {
     try {
       var data = JSON.parse(ev.target.result);
       if (!Array.isArray(data)) { toast('Invalid backup file'); return; }
-      students = data; updateCount(); renderHome();
-      toast(students.length + ' students loaded');
+      students = data; updateCount(); autoSave(); renderHome();
+      toast(students.length + ' students loaded — data saved to device');
     } catch(ex) { toast('Load failed'); }
   };
   r.readAsText(f);
@@ -603,7 +704,7 @@ function saveStu() {
     if (ex) { obj.hasCon = ex.hasCon; obj.hasDpl = ex.hasDpl; }
     for (var j = 0; j < students.length; j++) { if (students[j].id === curEdit) { students[j] = obj; break; } }
   } else { students.push(obj); }
-  updateCount(); toast('Student saved - tap Save to backup'); clearReg(); goTab('home');
+  updateCount(); autoSave(); toast('Student saved'); clearReg(); goTab('home');
 }
 function saveThenCon() {
   if (!gv('r-name')) { toast('Full name is required'); return; }
@@ -614,7 +715,7 @@ function saveThenCon() {
     if (ex) { obj.hasCon = ex.hasCon; obj.hasDpl = ex.hasDpl; }
     for (var j = 0; j < students.length; j++) { if (students[j].id === curEdit) { students[j] = obj; break; } }
   } else { students.push(obj); }
-  updateCount(); selCon = obj.id; curEdit = null; clearReg();
+  updateCount(); autoSave(); selCon = obj.id; curEdit = null; clearReg();
   goTab('con');
   renderSel('con-list', selCon, selectCon);
   selectCon(obj.id);
@@ -723,7 +824,7 @@ function delStu(id) {
   for (var i = 0; i < students.length; i++) { if (students[i].id === id) { s = students[i]; break; } }
   if (!confirm('Delete ' + (s ? s.name : '') + '? This cannot be undone.')) return;
   students = students.filter(function(x) { return x.id !== id; });
-  updateCount(); toast('Student deleted'); renderHome();
+  updateCount(); autoSave(); toast('Student deleted'); renderHome();
 }
 
 // ── STUDENT SELECTORS ──
@@ -1179,6 +1280,7 @@ function makeCmp() {
   if (_cst) {
     _cst.cmpData = { ivGrade:gv('c-ivg'), clGrade:gv('c-clg'), overall:gv('c-ovr'), ivHrs:document.getElementById('c-ivh').value, clHrs:document.getElementById('c-clh').value, notes:gv('c-note') };
     for (var _ci=0;_ci<students.length;_ci++){if(students[_ci].id===selCmp){students[_ci]=_cst;break;}}
+    autoSave();
   }
   toast('Completion PDF downloaded');
 }
@@ -1715,6 +1817,7 @@ function saveDplsToStudent(id) {
   for (var i = 0; i < students.length; i++) {
     if (students[i].id === id) { students[i] = st; break; }
   }
+  autoSave();
 }
 
 function init() {
@@ -1727,6 +1830,7 @@ function init() {
 
   // Top bar
   document.getElementById('btn-save').onclick = doSave;
+  document.getElementById('btn-cloud-save').onclick = cloudSave;
   document.getElementById('inp-load').onchange = doLoad;
 
   // Register buttons
