@@ -1,4 +1,4 @@
-<!-- ECDS v4.6 - 2026-05-28 23:32 -->
+<!-- ECDS v4.7 - 2026-05-28 23:46 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -138,7 +138,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
   <div><div class="n">Edmonton Car Driving School</div><div class="s">D.R.I.V.E.R. Tracker &middot; Auto-save ON &middot; <span id="stu-count">0 students</span></div></div>
   <div class="tr" style="display:flex;gap:5px;align-items:center">
     <span id="save-ind" style="font-size:9px;color:rgba(255,255,255,0.45);white-space:nowrap"></span>
-    <button class="btn b-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25)" id="btn-cloud-save">&#9729; iCloud</button>
+    <button class="btn b-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25)" id="btn-cloud-save">&#9729; Cloud</button>
     <button class="btn g sm" id="btn-save">&#11015; Export</button>
     <label class="btn b-sm" style="background:rgba(255,255,255,0.12);color:white;border:1px solid rgba(255,255,255,0.2);cursor:pointer">&#11014; Import<input type="file" accept=".json" id="inp-load" style="display:none"/></label>
   </div>
@@ -470,33 +470,54 @@ function cloudSave() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    // Show iOS-specific save to Files instructions
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
-      showIOSGuide(fname);
+    // Show device-appropriate cloud save instructions
+    var _ua = navigator.userAgent;
+    if (/iPad|iPhone|iPod/.test(_ua)) {
+      setTimeout(function(){ showCloudGuide(fname, 'ios'); }, 600);
+    } else if (/Android/.test(_ua)) {
+      setTimeout(function(){ showCloudGuide(fname, 'android'); }, 600);
     } else {
-      toast('Exported: ' + fname);
+      toast('Exported as ' + fname);
     }
   } catch(e) { toast('Export failed: ' + e.message); }
 }
 
-function showIOSGuide(fname) {
-  var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;display:flex;align-items:flex-end;padding:0 10px 10px';
-  d.innerHTML =
-    '<div style="background:#fff;border-radius:14px;padding:20px 18px;width:100%;max-width:500px;margin:0 auto">' +
-    '<div style="font-size:17px;font-weight:700;color:#1a3a5c;margin-bottom:12px">Save to iCloud Drive</div>' +
-    '<div style="font-size:13px;line-height:2;color:#333;background:#f5f3ef;border-radius:8px;padding:12px 14px;margin-bottom:14px">' +
-    '1. Tap the <strong>&#11015;</strong> download icon in Safari\'s address bar<br>' +
-    '2. Tap &amp; hold <strong>' + fname + '</strong><br>' +
-    '3. Tap <strong>Share &rarr; Save to Files</strong><br>' +
-    '4. Choose <strong>iCloud Drive</strong> &rarr; tap <strong>Save</strong>' +
-    '</div>' +
-    '<div style="font-size:12px;color:#888;margin-bottom:14px">To restore: tap Import and pick this file from iCloud Drive.</div>' +
-    '<button style="width:100%;padding:13px;background:#1a3a5c;color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer" onclick="this.closest(\'div\').parentElement.remove()">Done</button>' +
-    '</div>';
-  d.onclick = function(e){ if(e.target===d) d.remove(); };
-  document.body.appendChild(d);
+function showIOSGuide(fname) { showCloudGuide(fname, 'ios'); }
+
+function showCloudGuide(fname, platform) {
+  var isIOS = (platform === 'ios');
+  var title = isIOS ? '☁ Save to iCloud Drive' : '☁ Save to Google Drive / Cloud';
+  var steps = isIOS
+    ? '1. Tap the ↓ download icon in Safari address bar<br>2. Press and hold <strong>' + fname + '</strong><br>3. Tap <strong>Share → Save to Files</strong><br>4. Choose <strong>iCloud Drive</strong> → Save<br><br><em>To restore: tap Import and pick this file.</em>'
+    : '1. Open your <strong>Files / Downloads</strong> app<br>2. Find <strong>' + fname + '</strong><br>3. Tap and hold → <strong>Share</strong><br>4. Choose <strong>Google Drive</strong>, OneDrive, or Dropbox<br>5. Select folder → Save<br><br><em>To restore: tap Import and pick this file.</em>';
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;display:flex;align-items:flex-end;padding:0 10px 10px';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;padding:20px 18px;width:100%;max-width:500px;margin:0 auto';
+
+  var h = document.createElement('div');
+  h.style.cssText = 'font-size:17px;font-weight:700;color:#1a3a5c;margin-bottom:4px';
+  h.textContent = title;
+
+  var sub = document.createElement('div');
+  sub.style.cssText = 'font-size:12px;color:#888;margin-bottom:12px';
+  sub.innerHTML = 'File: <strong>' + fname + '</strong>';
+
+  var stepsDiv = document.createElement('div');
+  stepsDiv.style.cssText = 'background:#f5f3ef;border-radius:8px;padding:12px 14px;font-size:13px;line-height:2;margin-bottom:14px';
+  stepsDiv.innerHTML = steps;
+
+  var btn = document.createElement('button');
+  btn.style.cssText = 'width:100%;padding:13px;background:#1a3a5c;color:white;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer';
+  btn.textContent = 'Done';
+  btn.onclick = function() { overlay.remove(); };
+
+  box.appendChild(h); box.appendChild(sub); box.appendChild(stepsDiv); box.appendChild(btn);
+  overlay.appendChild(box);
+  overlay.onclick = function(e){ if(e.target===overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
 }
 
 
