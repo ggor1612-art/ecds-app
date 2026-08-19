@@ -1,4 +1,4 @@
-<!-- ECDS v4.9 - 2026-08-19 17:52 -->
+<!-- ECDS v4.9 - 2026-08-19 18:05 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -718,13 +718,26 @@ function readLic(dataUrl) {
               {inline_data:{mime_type:'image/jpeg',data:b64}},
               {text:prompt}
             ]}],
-            generationConfig:{maxOutputTokens:500,temperature:0}
+            generationConfig:{maxOutputTokens:600,temperature:0}
           })
         })
-        .then(function(r){return r.json();})
+        .then(function(r){ return r.json(); })
         .then(function(d){
-          if(d.error) throw new Error(d.error.message||'Gemini error');
-          try{return d.candidates[0].content.parts[0].text;}catch(e){return '';}
+          console.log('Gemini full response:', JSON.stringify(d).slice(0,500));
+          if (d.error) throw new Error(d.error.message || 'Gemini error');
+          // Try multiple paths to get text
+          var txt = '';
+          try { txt = d.candidates[0].content.parts[0].text; } catch(e) {}
+          if (!txt) {
+            try { txt = d.candidates[0].output; } catch(e) {}
+          }
+          if (!txt) {
+            // Show raw structure so we can debug
+            throw new Error('No text in response. Keys: ' + Object.keys(d).join(',') + 
+              (d.candidates ? ' candidates[0] keys: '+Object.keys(d.candidates[0]).join(',') : ''));
+          }
+          console.log('Gemini text:', txt.slice(0,300));
+          return txt;
         });
       } else {
         p = fetch('https://api.anthropic.com/v1/messages',{
@@ -757,14 +770,13 @@ function readLic(dataUrl) {
             console.log('Parsed OK:', parsed);
           } catch(e) {
             // Step 2: try cleaning up common Gemini issues
-            // Remove trailing commas before } or ]
             var cleaned = jsonStr.replace(/,\s*([}\]])/g, '$1');
-            // Fix unescaped quotes inside values
             try {
               parsed = JSON.parse(cleaned);
               console.log('Parsed after cleanup:', parsed);
             } catch(e2) {
-              console.log('Parse failed:', e2.message, jsonStr.slice(0, 300));
+              console.log('Parse FINAL fail. Error:', e2.message);
+              console.log('JSON string was:', jsonStr.slice(0, 400));
             }
           }
         }
