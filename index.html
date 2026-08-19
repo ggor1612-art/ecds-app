@@ -1,4 +1,4 @@
-<!-- ECDS v5.0 - 2026-08-19 18:23 -->
+<!-- ECDS v5.0 - 2026-08-19 18:29 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -797,12 +797,11 @@ function readLic(dataUrl) {
 
         if (!gv('r-reg')) sv('r-reg', td());
 
-        // Show summary
+        // Always show the full raw response so we can see exact labels
         var lines = txt.split('\n').filter(function(l){return l.trim();});
+        var rawHtml = lines.map(function(l){return l.replace(/</g,'&lt;');}).join('<br>');
         document.getElementById('air-txt').innerHTML =
-          filled > 0
-            ? lines.map(function(l){return '<span>'+l.replace(/</g,'&lt;')+'</span>';}).join('<br>')
-            : '<span style="color:var(--t2)">Raw response:<br>'+txt.slice(0,400).replace(/</g,'&lt;')+'</span>';
+          '<span style="font-size:11px;color:var(--t2)">Fields filled: '+filled+'<br><br>' + rawHtml + '</span>';
         document.getElementById('air').style.display = 'block';
         toast(filled > 0 ? '\u2713 ' + filled + ' fields filled - verify' : 'Could not parse fields');
         resolve();
