@@ -1,4 +1,4 @@
-<!-- ECDS v4.8 - 2026-08-19 16:13 -->
+<!-- ECDS v4.8 - 2026-08-19 16:48 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -716,7 +716,7 @@ function readLic(dataUrl) {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 500,
           messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
@@ -725,11 +725,15 @@ function readLic(dataUrl) {
         })
       })
       .then(function(resp) {
-        if (!resp.ok) throw new Error('API error ' + resp.status);
-        return resp.json();
+        return resp.json().then(function(d) {
+          if (!resp.ok) {
+            var msg = (d.error && d.error.message) ? d.error.message : ('API error ' + resp.status);
+            throw new Error(msg);
+          }
+          return d;
+        });
       })
       .then(function(data) {
-        // Check for API error response
         if (data.error) throw new Error(data.error.message || 'API error');
 
         var txt = '';
@@ -783,7 +787,7 @@ function readLic(dataUrl) {
         console.error('readLic error:', err);
         document.getElementById('air-txt').innerHTML = '<span style="color:var(--red)">Error: ' + (err.message||'unknown') + '. Please fill fields manually.</span>';
         document.getElementById('air').style.display = 'block';
-        toast('AI read failed - fill manually');
+        toast('Error: ' + (err.message || 'unknown').slice(0, 60));
         resolve(); // don't reject - let user fill manually
       });
     });
