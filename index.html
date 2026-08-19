@@ -1,4 +1,4 @@
-<!-- ECDS v4.7 - 2026-08-18 21:16 -->
+<!-- ECDS v4.8 - 2026-08-19 16:13 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,6 +139,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
   <div class="tr" style="display:flex;gap:5px;align-items:center">
     <span id="save-ind" style="font-size:9px;color:rgba(255,255,255,0.45);white-space:nowrap"></span>
     <button class="btn b-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25)" id="btn-cloud-save">&#9729; Cloud</button>
+    <button class="btn b-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25)" id="btn-settings">&#9881;</button>
     <button class="btn g sm" id="btn-save">&#11015; Export</button>
     <label class="btn b-sm" style="background:rgba(255,255,255,0.12);color:white;border:1px solid rgba(255,255,255,0.2);cursor:pointer">&#11014; Import<input type="file" accept=".json" id="inp-load" style="display:none"/></label>
   </div>
@@ -698,10 +699,19 @@ function readLic(dataUrl) {
       var b64 = resized.split(',')[1];
       var prompt = 'This is an Alberta driver licence photo. Extract all text and return ONLY a JSON object with these exact keys: full_name (format: Last, First Middle), licence_number, date_of_birth (YYYY-MM-DD), date_of_issue (YYYY-MM-DD), date_of_expiry (YYYY-MM-DD), address (street only), city, postal_code, gender (Male or Female), condition_codes. Return empty string for any field you cannot read clearly. No markdown, no explanation, just the JSON object.';
 
+      var apiKey = getApiKey();
+      if (!apiKey) {
+        document.getElementById('air-txt').innerHTML = '<span style="color:var(--red)">&#9888; No API key set. Tap <strong>&#9881;</strong> in the top bar to add your Anthropic API key.</span>';
+        document.getElementById('air').style.display = 'block';
+        document.getElementById('spin').style.display = 'none';
+        toast('Add API key in Settings (⚙) first');
+        resolve(); return;
+      }
       fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
@@ -2594,6 +2604,65 @@ function formatSkillVal(el) {
   }
 }
 
+
+// ── API KEY MANAGEMENT ────────────────────────────────────────────────
+var _apiKey = '';
+
+function loadApiKey() {
+  try { _apiKey = localStorage.getItem('ecds_api_key') || ''; } catch(e) {}
+  updateKeyStatus();
+}
+
+function saveApiKey() {
+  var k = document.getElementById('api-key-input').value.trim();
+  if (!k) { toast('Enter your API key first'); return; }
+  if (!k.startsWith('sk-ant-')) {
+    toast('Key should start with sk-ant-');
+    return;
+  }
+  try {
+    localStorage.setItem('ecds_api_key', k);
+    _apiKey = k;
+    updateKeyStatus();
+    closeSh('settings');
+    toast('\u2713 API key saved - AI licence reading ready');
+  } catch(e) { toast('Could not save key: ' + e.message); }
+}
+
+function clearApiKey() {
+  try { localStorage.removeItem('ecds_api_key'); } catch(e) {}
+  _apiKey = '';
+  document.getElementById('api-key-input').value = '';
+  updateKeyStatus();
+  toast('API key cleared');
+}
+
+function updateKeyStatus() {
+  var el = document.getElementById('key-status');
+  var inp = document.getElementById('api-key-input');
+  if (!el) return;
+  if (_apiKey) {
+    el.innerHTML = '<span style="color:var(--green)">&#10003; Key saved: ' + _apiKey.slice(0,12) + '...' + _apiKey.slice(-4) + '</span>';
+    if (inp) inp.value = _apiKey;
+  } else {
+    el.innerHTML = '<span style="color:var(--red)">&#9888; No API key - AI reading disabled</span>';
+  }
+}
+
+function toggleKeyVis() {
+  var inp = document.getElementById('api-key-input');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function getApiKey() {
+  if (!_apiKey) {
+    // Try loading from storage in case it was saved in another session
+    try { _apiKey = localStorage.getItem('ecds_api_key') || ''; } catch(e) {}
+  }
+  return _apiKey;
+}
+
 function init() {
   // Tab buttons
   document.getElementById('tab-home').onclick = function() { goTab('home'); };
@@ -2608,6 +2677,16 @@ function init() {
   // Top bar
   document.getElementById('btn-save').onclick = doSave;
   document.getElementById('btn-cloud-save').onclick = cloudSave;
+  document.getElementById('btn-settings').onclick = function() {
+    updateKeyStatus();
+    openSh('settings');
+  };
+  document.getElementById('sh-settings-cancel').onclick = function() { closeSh('settings'); };
+  document.getElementById('btn-save-key').onclick = saveApiKey;
+  document.getElementById('btn-clear-key').onclick = clearApiKey;
+  document.getElementById('sh-settings').onclick = function(e) { if(e.target===this) closeSh('settings'); };
+  // Load saved API key on startup
+  loadApiKey();
   document.getElementById('inp-load').onchange = doLoad;
 
   // Register buttons
@@ -2692,5 +2771,34 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 </script>
+
+<!-- SETTINGS MODAL -->
+<div class="shbg" id="sh-settings">
+  <div style="width:100%;max-width:500px">
+    <div class="sh">
+      <div class="sh-ttl">&#9881; Settings</div>
+      <div style="padding:16px">
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Anthropic API Key</div>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:8px;line-height:1.6">
+            Required for AI licence reading. Get your key at
+            <strong>console.anthropic.com</strong> &rarr; API Keys.<br>
+            Stored only on this device, never sent anywhere except Anthropic.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="password" id="api-key-input" placeholder="sk-ant-..." style="flex:1;border:1px solid rgba(0,0,0,0.2);border-radius:8px;padding:0 10px;height:40px;font-size:14px;font-family:monospace"/>
+            <button class="btn b-sm" id="btn-toggle-key" onclick="toggleKeyVis()" style="flex-shrink:0">&#128065;</button>
+          </div>
+          <div id="key-status" style="font-size:11px;margin-top:6px;color:var(--t3)"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn b-navy" style="flex:1" id="btn-save-key">Save API Key</button>
+          <button class="btn b-red b-sm" id="btn-clear-key">Clear</button>
+        </div>
+      </div>
+    </div>
+    <button class="sh-cancel" id="sh-settings-cancel">Close</button>
+  </div>
+</div>
 </body>
 </html>
