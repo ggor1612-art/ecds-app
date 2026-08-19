@@ -1,4 +1,4 @@
-<!-- ECDS v4.9 - 2026-08-19 17:47 -->
+<!-- ECDS v4.9 - 2026-08-19 17:52 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -745,24 +745,28 @@ function readLic(dataUrl) {
       }
 
       p.then(function(txt){
-        var parsed={};
-        // Log raw response for debugging
+        var parsed = {};
         console.log('AI raw response:', txt);
-        // Strip all possible markdown wrappers
-        var clean=txt.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/[^}]*$/,'').trim();
-        // Try parsing cleaned text
-        try{parsed=JSON.parse(clean);}catch(e){
-          // Try finding JSON object anywhere in response
-          var si=txt.indexOf('{'),en=txt.lastIndexOf('}');
-          if(si>=0&&en>si){
-            try{parsed=JSON.parse(txt.slice(si,en+1));}catch(e2){
-              console.log('Parse error:', e2.message, 'Text was:', txt.slice(si,en+1).slice(0,200));
+        // Step 1: find the JSON object in the response
+        var si = txt.indexOf('{');
+        var en = txt.lastIndexOf('}');
+        if (si >= 0 && en > si) {
+          var jsonStr = txt.slice(si, en + 1);
+          try {
+            parsed = JSON.parse(jsonStr);
+            console.log('Parsed OK:', parsed);
+          } catch(e) {
+            // Step 2: try cleaning up common Gemini issues
+            // Remove trailing commas before } or ]
+            var cleaned = jsonStr.replace(/,\s*([}\]])/g, '$1');
+            // Fix unescaped quotes inside values
+            try {
+              parsed = JSON.parse(cleaned);
+              console.log('Parsed after cleanup:', parsed);
+            } catch(e2) {
+              console.log('Parse failed:', e2.message, jsonStr.slice(0, 300));
             }
           }
-        }
-        // Show raw response in debug if nothing parsed
-        if(Object.keys(parsed).length===0){
-          console.log('No fields parsed from:', txt);
         }
         var map={full_name:'r-name',licence_number:'r-lic',date_of_birth:'r-dob',
           date_of_issue:'r-iss',date_of_expiry:'r-exp',address:'r-addr',
@@ -779,10 +783,13 @@ function readLic(dataUrl) {
         if(!gv('r-reg')) sv('r-reg',td());
         var parts=[];
         Object.keys(parsed).forEach(function(k){if(parsed[k])parts.push('<b>'+k.replace(/_/g,' ')+':</b> '+parsed[k]);});
-        var debugTxt = Object.keys(parsed).length === 0 ? 
-          '<span style="color:var(--t2);font-size:11px">AI responded but could not parse fields. Raw: ' + txt.slice(0,150) + '</span>' : 
-          parts.join(' | ');
-        document.getElementById('air-txt').innerHTML = debugTxt;
+        if (Object.keys(parsed).length === 0) {
+          document.getElementById('air-txt').innerHTML =
+            '<span style="color:var(--t2);font-size:11px">AI responded but parse failed. Raw:<br>' +
+            txt.slice(0, 300).replace(/</g,'&lt;') + '</span>';
+        } else {
+          document.getElementById('air-txt').innerHTML = parts.join(' | ');
+        }
         document.getElementById('air').style.display='block';
         toast(filled>0?'\u2713 '+filled+' fields filled - please verify':'Could not read - fill manually');
         resolve();
