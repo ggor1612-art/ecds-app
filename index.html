@@ -1,4 +1,4 @@
-<!-- ECDS v4.7 - 2026-05-28 23:46 -->
+<!-- ECDS v4.7 - 2026-08-18 21:16 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,9 +161,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,Helvetica,sans-serif;backgroun
     <div class="csec">&#128247; STEP 1 &mdash; PHOTOGRAPH LICENCE</div>
     <div class="pz" id="pz">
       <div class="pz-icon">&#127243;</div>
-      <div class="pz-txt">Tap to photograph licence<br><strong>AI reads it automatically</strong></div>
+      <div class="pz-txt">Tap to photograph or upload licence<br><strong>&#10024; AI fills the form automatically</strong><br><span style="font-size:11px;color:var(--t3)">Tip: good lighting, flat surface, all text visible</span></div>
       <img id="ph-img" alt=""/>
-      <div class="spin" id="spin"><span class="spin-ico">&#9696;</span><span style="font-size:12px;color:var(--t2)">Reading&hellip;</span></div>
+      <div class="spin" id="spin"><span class="spin-ico">&#9696;</span><span style="font-size:12px;color:var(--t2)">AI reading licence&hellip;</span></div>
     </div>
     <div class="air" id="air"><strong style="color:var(--b);display:block;margin-bottom:3px">&#10024; AI extracted &mdash; verify below</strong><span id="air-txt"></span></div>
   </div>
@@ -677,47 +677,106 @@ function gotPhoto(e) {
   };
   r.readAsDataURL(file);
 }
+function resizeImage(dataUrl, maxW, maxH, quality, callback) {
+  var img = new Image();
+  img.onload = function() {
+    var w = img.width, h = img.height;
+    var scale = Math.min(1, maxW / w, maxH / h);
+    var cw = Math.round(w * scale), ch = Math.round(h * scale);
+    var canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
+
 function readLic(dataUrl) {
-  var b64 = dataUrl.split(',')[1];
-  var mimeMatch = dataUrl.match(/data:([^;]+):/);
-  var mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-  var prompt = 'Read this Alberta driver licence. Reply ONLY with raw JSON (no markdown). Keys: full_name (Last, First Middle), licence_number, date_of_birth (YYYY-MM-DD), date_of_issue (YYYY-MM-DD), date_of_expiry (YYYY-MM-DD), address, city, postal_code, gender (Male or Female), condition_codes. Use empty string for unreadable fields.';
-  return fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 400,
-      messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
-        { type: 'text', text: prompt }
-      ]}]
-    })
-  })
-  .then(function(resp) { return resp.json(); })
-  .then(function(data) {
-    var txt = '';
-    if (data.content) {
-      data.content.forEach(function(b) { if (b.type === 'text') txt += b.text; });
-    }
-    var p = {};
-    var clean = txt.replace(/```json/g,'').replace(/```/g,'').trim();
-    try { p = JSON.parse(clean); } catch(e) {
-      var start = txt.indexOf('{'), end = txt.lastIndexOf('}');
-      if (start >= 0 && end > start) try { p = JSON.parse(txt.slice(start, end+1)); } catch(e2) {}
-    }
-    var map = { full_name:'r-name', licence_number:'r-lic', date_of_birth:'r-dob',
-      date_of_issue:'r-iss', date_of_expiry:'r-exp', address:'r-addr',
-      city:'r-city', postal_code:'r-post', condition_codes:'r-type' };
-    Object.keys(map).forEach(function(k) {
-      if (p[k]) { sv(map[k], p[k]); document.getElementById(map[k]).classList.add('ai'); }
+  return new Promise(function(resolve, reject) {
+    // Resize to max 1600x1200 before sending - speeds up API and reduces cost
+    resizeImage(dataUrl, 1600, 1200, 0.85, function(resized) {
+      var b64 = resized.split(',')[1];
+      var prompt = 'This is an Alberta driver licence photo. Extract all text and return ONLY a JSON object with these exact keys: full_name (format: Last, First Middle), licence_number, date_of_birth (YYYY-MM-DD), date_of_issue (YYYY-MM-DD), date_of_expiry (YYYY-MM-DD), address (street only), city, postal_code, gender (Male or Female), condition_codes. Return empty string for any field you cannot read clearly. No markdown, no explanation, just the JSON object.';
+
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'text', text: prompt }
+          ]}]
+        })
+      })
+      .then(function(resp) {
+        if (!resp.ok) throw new Error('API error ' + resp.status);
+        return resp.json();
+      })
+      .then(function(data) {
+        // Check for API error response
+        if (data.error) throw new Error(data.error.message || 'API error');
+
+        var txt = '';
+        if (data.content) data.content.forEach(function(b) { if (b.type==='text') txt += b.text; });
+
+        var p = {};
+        var clean = txt.replace(/```json/gi,'').replace(/```/g,'').trim();
+        try { p = JSON.parse(clean); } catch(e) {
+          var s = txt.indexOf('{'), en = txt.lastIndexOf('}');
+          if (s>=0 && en>s) try { p = JSON.parse(txt.slice(s,en+1)); } catch(e2) {}
+        }
+
+        var map = {
+          full_name:       'r-name',
+          licence_number:  'r-lic',
+          date_of_birth:   'r-dob',
+          date_of_issue:   'r-iss',
+          date_of_expiry:  'r-exp',
+          address:         'r-addr',
+          city:            'r-city',
+          postal_code:     'r-post',
+          condition_codes: 'r-type'
+        };
+
+        var filled = 0;
+        Object.keys(map).forEach(function(k) {
+          if (p[k] && p[k].toString().trim()) {
+            sv(map[k], p[k].toString().trim());
+            var el = document.getElementById(map[k]);
+            if (el) el.classList.add('ai');
+            filled++;
+          }
+        });
+        if (p.gender) document.getElementById('r-gen').value = p.gender;
+        if (!gv('r-reg')) sv('r-reg', td());
+
+        // Show what was extracted
+        var parts = [];
+        Object.keys(p).forEach(function(k) { if (p[k]) parts.push('<b>'+k.replace(/_/g,' ')+':</b> '+p[k]); });
+        document.getElementById('air-txt').innerHTML = parts.join(' &nbsp;|&nbsp; ') || 'No fields detected.';
+        document.getElementById('air').style.display = 'block';
+
+        if (filled > 0) {
+          toast('\u2713 ' + filled + ' fields filled - please verify');
+        } else {
+          toast('Could not read licence - photo may be blurry, fill manually');
+        }
+        resolve();
+      })
+      .catch(function(err) {
+        console.error('readLic error:', err);
+        document.getElementById('air-txt').innerHTML = '<span style="color:var(--red)">Error: ' + (err.message||'unknown') + '. Please fill fields manually.</span>';
+        document.getElementById('air').style.display = 'block';
+        toast('AI read failed - fill manually');
+        resolve(); // don't reject - let user fill manually
+      });
     });
-    if (p.gender) document.getElementById('r-gen').value = p.gender;
-    if (!gv('r-reg')) sv('r-reg', td());
-    var parts = [];
-    Object.keys(p).forEach(function(k) { if (p[k]) parts.push('<b>' + k.replace(/_/g,' ') + ':</b> ' + p[k]); });
-    document.getElementById('air-txt').innerHTML = parts.join(' / ') || 'No fields detected.';
-    document.getElementById('air').style.display = 'block';
-    toast(p.full_name || p.licence_number ? 'Licence read - verify fields' : 'Could not read - fill manually');
   });
 }
 function remPhoto() {
