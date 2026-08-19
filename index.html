@@ -1,4 +1,4 @@
-<!-- ECDS v4.9 - 2026-08-19 17:40 -->
+<!-- ECDS v4.9 - 2026-08-19 17:47 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -707,7 +707,7 @@ function readLic(dataUrl) {
         resolve(); return;
       }
 
-      var prompt = 'Alberta driver licence photo. Return ONLY JSON: full_name (Last, First Middle), licence_number, date_of_birth (YYYY-MM-DD), date_of_issue (YYYY-MM-DD), date_of_expiry (YYYY-MM-DD), address (street only), city, postal_code, gender (Male or Female), condition_codes. Empty string if unreadable.';
+      var prompt = 'Look at this Alberta driver licence card image. Extract the text and fill in this JSON template. Return ONLY the raw JSON object, no markdown, no code blocks, no explanation:\n{\n  "full_name": "Last, First Middle",\n  "licence_number": "",\n  "date_of_birth": "YYYY-MM-DD",\n  "date_of_issue": "YYYY-MM-DD",\n  "date_of_expiry": "YYYY-MM-DD",\n  "address": "street address only",\n  "city": "",\n  "postal_code": "",\n  "gender": "Male or Female",\n  "condition_codes": ""\n}\nUse empty string for any field you cannot read. Dates must be YYYY-MM-DD format.';
 
       var p;
       if (geminiKey) {
@@ -746,10 +746,23 @@ function readLic(dataUrl) {
 
       p.then(function(txt){
         var parsed={};
-        var clean=txt.replace(/```json/gi,'').replace(/```/g,'').trim();
+        // Log raw response for debugging
+        console.log('AI raw response:', txt);
+        // Strip all possible markdown wrappers
+        var clean=txt.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/[^}]*$/,'').trim();
+        // Try parsing cleaned text
         try{parsed=JSON.parse(clean);}catch(e){
+          // Try finding JSON object anywhere in response
           var si=txt.indexOf('{'),en=txt.lastIndexOf('}');
-          if(si>=0&&en>si)try{parsed=JSON.parse(txt.slice(si,en+1));}catch(e2){}
+          if(si>=0&&en>si){
+            try{parsed=JSON.parse(txt.slice(si,en+1));}catch(e2){
+              console.log('Parse error:', e2.message, 'Text was:', txt.slice(si,en+1).slice(0,200));
+            }
+          }
+        }
+        // Show raw response in debug if nothing parsed
+        if(Object.keys(parsed).length===0){
+          console.log('No fields parsed from:', txt);
         }
         var map={full_name:'r-name',licence_number:'r-lic',date_of_birth:'r-dob',
           date_of_issue:'r-iss',date_of_expiry:'r-exp',address:'r-addr',
@@ -766,7 +779,10 @@ function readLic(dataUrl) {
         if(!gv('r-reg')) sv('r-reg',td());
         var parts=[];
         Object.keys(parsed).forEach(function(k){if(parsed[k])parts.push('<b>'+k.replace(/_/g,' ')+':</b> '+parsed[k]);});
-        document.getElementById('air-txt').innerHTML=parts.join(' | ')||'No fields detected.';
+        var debugTxt = Object.keys(parsed).length === 0 ? 
+          '<span style="color:var(--t2);font-size:11px">AI responded but could not parse fields. Raw: ' + txt.slice(0,150) + '</span>' : 
+          parts.join(' | ');
+        document.getElementById('air-txt').innerHTML = debugTxt;
         document.getElementById('air').style.display='block';
         toast(filled>0?'\u2713 '+filled+' fields filled - please verify':'Could not read - fill manually');
         resolve();
