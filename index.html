@@ -1,4 +1,4 @@
-<!-- ECDS v4.9 - 2026-08-19 18:05 -->
+<!-- ECDS v5.0 - 2026-08-19 18:23 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -707,7 +707,7 @@ function readLic(dataUrl) {
         resolve(); return;
       }
 
-      var prompt = 'Look at this Alberta driver licence card image. Extract the text and fill in this JSON template. Return ONLY the raw JSON object, no markdown, no code blocks, no explanation:\n{\n  "full_name": "Last, First Middle",\n  "licence_number": "",\n  "date_of_birth": "YYYY-MM-DD",\n  "date_of_issue": "YYYY-MM-DD",\n  "date_of_expiry": "YYYY-MM-DD",\n  "address": "street address only",\n  "city": "",\n  "postal_code": "",\n  "gender": "Male or Female",\n  "condition_codes": ""\n}\nUse empty string for any field you cannot read. Dates must be YYYY-MM-DD format.';
+      var prompt = 'Read this Alberta driver licence and extract the following fields. Reply in this EXACT format with one field per line:\nNAME: (Last, First Middle)\nLICENCE: (number)\nDOB: (YYYY-MM-DD)\nISSUED: (YYYY-MM-DD)\nEXPIRY: (YYYY-MM-DD)\nADDRESS: (street only)\nCITY: (city name)\nPOSTAL: (postal code)\nGENDER: (Male or Female)\nCONDITION: (condition code or blank)\nWrite UNKNOWN for anything you cannot read clearly.';
 
       var p;
       if (geminiKey) {
@@ -718,25 +718,18 @@ function readLic(dataUrl) {
               {inline_data:{mime_type:'image/jpeg',data:b64}},
               {text:prompt}
             ]}],
-            generationConfig:{maxOutputTokens:600,temperature:0}
+            generationConfig:{maxOutputTokens:400,temperature:0}
           })
         })
         .then(function(r){ return r.json(); })
         .then(function(d){
-          console.log('Gemini full response:', JSON.stringify(d).slice(0,500));
+          console.log('Gemini response:', JSON.stringify(d).slice(0,500));
           if (d.error) throw new Error(d.error.message || 'Gemini error');
-          // Try multiple paths to get text
           var txt = '';
-          try { txt = d.candidates[0].content.parts[0].text; } catch(e) {}
-          if (!txt) {
-            try { txt = d.candidates[0].output; } catch(e) {}
+          try { txt = d.candidates[0].content.parts[0].text; } catch(e) {
+            throw new Error('Unexpected response structure: ' + JSON.stringify(d).slice(0,200));
           }
-          if (!txt) {
-            // Show raw structure so we can debug
-            throw new Error('No text in response. Keys: ' + Object.keys(d).join(',') + 
-              (d.candidates ? ' candidates[0] keys: '+Object.keys(d.candidates[0]).join(',') : ''));
-          }
-          console.log('Gemini text:', txt.slice(0,300));
+          console.log('Gemini text:', txt);
           return txt;
         });
       } else {
@@ -744,7 +737,7 @@ function readLic(dataUrl) {
           method:'POST',
           headers:{'Content-Type':'application/json','x-api-key':anthropicKey,
             'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-          body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,
+          body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,
             messages:[{role:'user',content:[
               {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
               {type:'text',text:prompt}
@@ -758,52 +751,60 @@ function readLic(dataUrl) {
       }
 
       p.then(function(txt){
-        var parsed = {};
-        console.log('AI raw response:', txt);
-        // Step 1: find the JSON object in the response
-        var si = txt.indexOf('{');
-        var en = txt.lastIndexOf('}');
-        if (si >= 0 && en > si) {
-          var jsonStr = txt.slice(si, en + 1);
-          try {
-            parsed = JSON.parse(jsonStr);
-            console.log('Parsed OK:', parsed);
-          } catch(e) {
-            // Step 2: try cleaning up common Gemini issues
-            var cleaned = jsonStr.replace(/,\s*([}\]])/g, '$1');
-            try {
-              parsed = JSON.parse(cleaned);
-              console.log('Parsed after cleanup:', parsed);
-            } catch(e2) {
-              console.log('Parse FINAL fail. Error:', e2.message);
-              console.log('JSON string was:', jsonStr.slice(0, 400));
-            }
-          }
+        console.log('AI response:', txt);
+
+        // Extract using simple line-by-line parsing
+        function getField(label) {
+          var pattern = new RegExp(label + '\\s*[:\\-]\\s*(.+)', 'i');
+          var match = txt.match(pattern);
+          if (!match) return '';
+          var val = match[1].trim().replace(/\*\*/g,'');
+          return (val.toUpperCase()==='UNKNOWN'||val==='-'||val==='N/A'||val==='') ? '' : val;
         }
-        var map={full_name:'r-name',licence_number:'r-lic',date_of_birth:'r-dob',
-          date_of_issue:'r-iss',date_of_expiry:'r-exp',address:'r-addr',
-          city:'r-city',postal_code:'r-post',condition_codes:'r-type'};
-        var filled=0;
-        Object.keys(map).forEach(function(k){
-          if(parsed[k]&&parsed[k].toString().trim()){
-            sv(map[k],parsed[k].toString().trim());
-            var el=document.getElementById(map[k]);
-            if(el){el.classList.add('ai');filled++;}
+
+        var filled = 0;
+        var fieldMap = [
+          ['NAME',      'r-name'],
+          ['LICENCE',   'r-lic'],
+          ['DOB',       'r-dob'],
+          ['ISSUED',    'r-iss'],
+          ['EXPIRY',    'r-exp'],
+          ['ADDRESS',   'r-addr'],
+          ['CITY',      'r-city'],
+          ['POSTAL',    'r-post'],
+          ['CONDITION', 'r-type']
+        ];
+
+        fieldMap.forEach(function(pair) {
+          var val = getField(pair[0]);
+          if (val) {
+            sv(pair[1], val);
+            var el = document.getElementById(pair[1]);
+            if (el) { el.classList.add('ai'); filled++; }
           }
         });
-        if(parsed.gender) document.getElementById('r-gen').value=parsed.gender;
-        if(!gv('r-reg')) sv('r-reg',td());
-        var parts=[];
-        Object.keys(parsed).forEach(function(k){if(parsed[k])parts.push('<b>'+k.replace(/_/g,' ')+':</b> '+parsed[k]);});
-        if (Object.keys(parsed).length === 0) {
-          document.getElementById('air-txt').innerHTML =
-            '<span style="color:var(--t2);font-size:11px">AI responded but parse failed. Raw:<br>' +
-            txt.slice(0, 300).replace(/</g,'&lt;') + '</span>';
-        } else {
-          document.getElementById('air-txt').innerHTML = parts.join(' | ');
+
+        // Gender separately
+        var gen = getField('GENDER');
+        if (gen) {
+          var gs = document.getElementById('r-gen');
+          if (gs) {
+            var gv2 = gen.charAt(0).toUpperCase() + gen.slice(1).toLowerCase();
+            if (gv2 === 'Male' || gv2 === 'Female') gs.value = gv2;
+          }
+          filled++;
         }
-        document.getElementById('air').style.display='block';
-        toast(filled>0?'\u2713 '+filled+' fields filled - please verify':'Could not read - fill manually');
+
+        if (!gv('r-reg')) sv('r-reg', td());
+
+        // Show summary
+        var lines = txt.split('\n').filter(function(l){return l.trim();});
+        document.getElementById('air-txt').innerHTML =
+          filled > 0
+            ? lines.map(function(l){return '<span>'+l.replace(/</g,'&lt;')+'</span>';}).join('<br>')
+            : '<span style="color:var(--t2)">Raw response:<br>'+txt.slice(0,400).replace(/</g,'&lt;')+'</span>';
+        document.getElementById('air').style.display = 'block';
+        toast(filled > 0 ? '\u2713 ' + filled + ' fields filled - verify' : 'Could not parse fields');
         resolve();
       })
       .catch(function(err){
