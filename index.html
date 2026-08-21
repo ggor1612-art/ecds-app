@@ -1,4 +1,4 @@
-<!-- ECDS v5.1 - 2026-08-20 21:45 -->
+<!-- ECDS v5.2 - 2026-08-21 00:20 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -692,8 +692,10 @@ function resizeImage(dataUrl, maxW, maxH, quality, callback) {
 
 function readLic(dataUrl) {
   return new Promise(function(resolve) {
-    resizeImage(dataUrl, 1600, 1200, 0.85, function(resized) {
-      var b64 = resized.split(',')[1];
+    // Use original image if under 4MB, otherwise resize
+    var imgSize = Math.round(dataUrl.length * 0.75);
+    var processImage = function(finalUrl) {
+      var b64 = finalUrl.split(',')[1];
       var s = loadSettings();
       var geminiKey = s.geminiKey || '';
       var anthropicKey = s.anthropicKey || '';
@@ -711,11 +713,11 @@ function readLic(dataUrl) {
 
       var p;
       if (geminiKey) {
-        p = fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key='+geminiKey, {
+        p = fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+geminiKey, {
           method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             contents:[{parts:[
-              {inline_data:{mime_type:'image/jpeg',data:b64}},
+              {inline_data:{mime_type: dataUrl.match(/data:([^;]+);/)[1] || 'image/jpeg', data:b64}},
               {text:prompt}
             ]}],
             generationConfig:{maxOutputTokens:400,temperature:0}
@@ -812,7 +814,12 @@ function readLic(dataUrl) {
         toast('Error: '+(err.message||'').slice(0,80));
         resolve();
       });
-    });
+    };
+    if (imgSize > 4000000) {
+      resizeImage(dataUrl, 2400, 1800, 0.92, processImage);
+    } else {
+      processImage(dataUrl);
+    }
   });
 }
 function remPhoto() {
