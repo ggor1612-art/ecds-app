@@ -1,4 +1,4 @@
-<!-- ECDS v5.0 - 2026-08-19 18:29 -->
+<!-- ECDS v5.1 - 2026-08-20 21:45 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -707,7 +707,7 @@ function readLic(dataUrl) {
         resolve(); return;
       }
 
-      var prompt = 'Read this Alberta driver licence and extract the following fields. Reply in this EXACT format with one field per line:\nNAME: (Last, First Middle)\nLICENCE: (number)\nDOB: (YYYY-MM-DD)\nISSUED: (YYYY-MM-DD)\nEXPIRY: (YYYY-MM-DD)\nADDRESS: (street only)\nCITY: (city name)\nPOSTAL: (postal code)\nGENDER: (Male or Female)\nCONDITION: (condition code or blank)\nWrite UNKNOWN for anything you cannot read clearly.';
+      var prompt = 'This is a photo of a Canadian Alberta province driver licence card. Please carefully read ALL the text printed on this card. The card contains the following information printed on it:\n- The person full name\n- A licence number (usually 6-9 digits, may have a dash)\n- Date of birth\n- Issue date and expiry date\n- Home address, city, and postal code\n- Gender (M or F)\n- Class and any condition codes\n\nPlease extract every field you can read and respond with EXACTLY this format, one line per field. Put the actual value after each colon:\nNAME: \nLICENCE: \nDOB: \nISSUED: \nEXPIRY: \nADDRESS: \nCITY: \nPOSTAL: \nGENDER: \nCONDITION: \n\nFor dates use YYYY-MM-DD format. For name use Last, First Middle format. Write UNKNOWN if you truly cannot read a field. Do not skip any fields.';
 
       var p;
       if (geminiKey) {
